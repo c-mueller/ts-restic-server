@@ -1,0 +1,19 @@
+listen: ":8880"
+listen_mode: plain       # "plain" or "tailscale"
+append_only: false
+log_level: info
+
+tailscale:
+  hostname: restic-server
+  state_dir: /var/lib/ts-restic
+  auth_key: ""            # TS_AUTHKEY or set via RESTIC_TAILSCALE_AUTH_KEY
+
+storage:
+  backend: filesystem     # "filesystem", "s3", "memory"
+  path: /var/lib/restic
+  max_memory_bytes: 104857600  # 100MB for memory backend
+  s3:
+    bucket: my-bucket
+    prefix: ""
+    region: eu-central-1
+    endpoint: ""          # custom S3 endpoint (e.g. MinIO)
