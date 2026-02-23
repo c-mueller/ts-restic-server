@@ -166,6 +166,10 @@ restic -r rest:http://localhost:8880/host-b/daily init
 # These are completely independent repositories
 ```
 
+## Disclaimer
+
+This project is not affiliated with or endorsed by the [restic](https://restic.net/) project or [Tailscale Inc.](https://tailscale.com/) Tailscale is a registered trademark of Tailscale Inc.
+
 ## License
 
 Apache License 2.0 - see [LICENSE](LICENSE).
