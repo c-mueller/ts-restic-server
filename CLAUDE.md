@@ -36,6 +36,7 @@ go build -o ts-restic-server .
 - `internal/storage/memory/` — In-memory backend (configurable cap, sync.RWMutex)
 - `internal/storage/filesystem/` — Filesystem backend (atomic writes, fsync, data/00-ff)
 - `internal/storage/s3/` — S3 backend (aws-sdk-go-v2, custom endpoints, static creds)
+- `internal/storage/webdav/` — WebDAV backend (gowebdav, Nextcloud/ownCloud/HiDrive/Box)
 
 ## Configuration
 
@@ -48,8 +49,9 @@ See `config.example.yaml` for all options.
 - **Multi-repo**: URL path prefix (e.g. `/host/backup`) scopes storage per repo
 - **Append-only**: DELETE on blobs returns 403, lock deletion stays allowed
 - **Memory backend**: shared quota across all repos, ErrQuotaExceeded on overflow
-- **Filesystem**: atomic writes (temp + fsync + rename), data/00-ff subdirectories
+- **Filesystem**: atomic writes (temp + fsync + rename), optional data/00-ff sharding
 - **S3**: supports custom endpoints (MinIO, Hetzner, etc.), static or chain credentials
+- **WebDAV**: gowebdav client, flat structure per type (no data/00-ff sharding), Basic Auth
 - **Tailscale**: tsnet ListenTLS on :443, state_dir for persistent keys
 - **No auth in v1**: Tailscale provides identity; ACLs are a future feature
 

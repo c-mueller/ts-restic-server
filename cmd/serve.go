@@ -11,6 +11,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/storage/filesystem"
 	"github.com/c-mueller/ts-restic-server/internal/storage/memory"
 	s3backend "github.com/c-mueller/ts-restic-server/internal/storage/s3"
+	webdavbackend "github.com/c-mueller/ts-restic-server/internal/storage/webdav"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -87,9 +88,11 @@ func buildBackend(cfg *config.Config) (storage.Backend, error) {
 	case "memory":
 		return memory.New(cfg.Storage.MaxMemoryBytes), nil
 	case "filesystem":
-		return filesystem.New(cfg.Storage.Path)
+		return filesystem.New(cfg.Storage.Path, cfg.Storage.DataSharding)
 	case "s3":
 		return s3backend.New(context.Background(), cfg.Storage.S3.Bucket, cfg.Storage.S3.Prefix, cfg.Storage.S3.Region, cfg.Storage.S3.Endpoint, cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey)
+	case "webdav":
+		return webdavbackend.New(cfg.Storage.WebDAV.Endpoint, cfg.Storage.WebDAV.Username, cfg.Storage.WebDAV.Password, cfg.Storage.WebDAV.Prefix, cfg.Storage.DataSharding), nil
 	default:
 		return nil, &config.ValidationError{Field: "storage.backend", Value: cfg.Storage.Backend}
 	}

@@ -5,7 +5,7 @@ A [restic](https://restic.net/) REST server written in Go, implementing the offi
 ## Features
 
 - Full restic REST API (v1 and v2) compatibility
-- Multiple storage backends: Filesystem, S3-compatible, In-Memory
+- Multiple storage backends: Filesystem, S3-compatible, WebDAV, In-Memory
 - Multi-repository support via URL path prefixes (e.g. `/host-a/backups`, `/host-b/docs`)
 - Optional Tailscale integration for TLS without certificates or port forwarding
 - Append-only mode (deletes blocked except for lock removal)
@@ -76,9 +76,10 @@ tailscale:
   auth_key: ""
 
 storage:
-  backend: filesystem     # "filesystem", "s3", "memory"
+  backend: filesystem     # "filesystem", "s3", "webdav", "memory"
   path: ./restic_data
   max_memory_bytes: 104857600  # 100MB for memory backend
+  data_sharding: true          # split data/ into 256 subdirs (00-ff); for filesystem and webdav
   s3:
     bucket: my-bucket
     prefix: ""
@@ -86,6 +87,11 @@ storage:
     endpoint: ""
     access_key: ""
     secret_key: ""
+  webdav:
+    endpoint: ""
+    username: ""
+    password: ""
+    prefix: ""
 ```
 
 ### CLI Flags
@@ -97,7 +103,7 @@ storage:
 | `--listen-mode` | `plain` or `tailscale` |
 | `--append-only` | Enable append-only mode |
 | `--log-level` | `debug`, `info`, `warn`, `error` |
-| `--storage-backend` | `filesystem`, `s3`, `memory` |
+| `--storage-backend` | `filesystem`, `s3`, `webdav`, `memory` |
 | `--storage-path` | Path for filesystem backend |
 
 ## Storage Backends
@@ -126,6 +132,20 @@ storage:
     endpoint: https://fsn1.your-objectstorage.com # leave empty for AWS
     access_key: AKIA...
     secret_key: wJal...
+```
+
+### WebDAV
+
+Works with any WebDAV-compatible cloud storage: Nextcloud, ownCloud, HiDrive, Box, and others. No rclone intermediary needed.
+
+```yaml
+storage:
+  backend: webdav
+  webdav:
+    endpoint: https://cloud.example.com/remote.php/dav/files/user
+    username: myuser
+    password: mypassword
+    prefix: backups            # optional subdirectory within the WebDAV server
 ```
 
 ### In-Memory
@@ -157,6 +177,7 @@ The Tailscale listener always binds to port 443, so restic clients can connect w
 The server supports hosting multiple independent repositories under different URL paths. The path prefix is transparently passed to the storage backend:
 
 - **S3**: path prefix becomes part of the S3 key (e.g. `{prefix}/host-a/backups/data/...`)
+- **WebDAV**: path prefix becomes a subdirectory on the WebDAV server (e.g. `{prefix}/host-a/backups/data/...`)
 - **Filesystem**: path prefix becomes a subdirectory (e.g. `./restic_data/host-a/backups/data/...`)
 - **Memory**: each path prefix gets its own isolated in-memory store
 
@@ -183,6 +204,7 @@ restic.example.com {
 
 - **Filesystem** — local disk storage with restic's standard directory layout. Default and simplest option.
 - **S3-compatible** — any S3-compatible object storage. Supports custom endpoints for non-AWS providers.
+- **WebDAV** — any WebDAV-compatible cloud storage (Nextcloud, ownCloud, HiDrive, Box, etc.).
 - **In-Memory** — ephemeral storage for testing. Data is lost on restart. Configurable memory cap.
 
 ### Which S3 providers have been tested?

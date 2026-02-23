@@ -12,6 +12,7 @@ storage:
   backend: filesystem     # "filesystem", "s3", "memory"
   path: ./restic_data
   max_memory_bytes: 104857600  # 100MB for memory backend
+  data_sharding: true          # split data/ into 256 subdirs (00-ff); applies to filesystem and webdav
   s3:
     bucket: my-bucket
     prefix: ""
@@ -19,3 +20,8 @@ storage:
     endpoint: ""          # custom S3 endpoint (e.g. MinIO)
     access_key: ""        # leave empty to use AWS default credential chain
     secret_key: ""
+  webdav:
+    endpoint: ""          # WebDAV server URL (e.g. https://cloud.example.com/remote.php/dav/files/user)
+    username: ""
+    password: ""
+    prefix: ""            # optional path prefix within the WebDAV server

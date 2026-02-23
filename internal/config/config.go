@@ -26,7 +26,16 @@ type Storage struct {
 	Backend        string `mapstructure:"backend"`
 	Path           string `mapstructure:"path"`
 	MaxMemoryBytes int64  `mapstructure:"max_memory_bytes"`
+	DataSharding   bool   `mapstructure:"data_sharding"`
 	S3             S3     `mapstructure:"s3"`
+	WebDAV         WebDAV `mapstructure:"webdav"`
+}
+
+type WebDAV struct {
+	Endpoint string `mapstructure:"endpoint"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	Prefix   string `mapstructure:"prefix"`
 }
 
 type S3 struct {
@@ -48,6 +57,7 @@ func SetDefaults() {
 	viper.SetDefault("storage.backend", "filesystem")
 	viper.SetDefault("storage.path", "./restic_data")
 	viper.SetDefault("storage.max_memory_bytes", 104857600) // 100MB
+	viper.SetDefault("storage.data_sharding", true)
 }
 
 func Load() (*Config, error) {
@@ -82,9 +92,9 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.Storage.Backend {
-	case "filesystem", "s3", "memory":
+	case "filesystem", "s3", "memory", "webdav":
 	default:
-		return fmt.Errorf("invalid storage.backend %q: must be \"filesystem\", \"s3\", or \"memory\"", c.Storage.Backend)
+		return fmt.Errorf("invalid storage.backend %q: must be \"filesystem\", \"s3\", \"memory\", or \"webdav\"", c.Storage.Backend)
 	}
 
 	if c.Storage.Backend == "filesystem" && c.Storage.Path == "" {
@@ -103,6 +113,16 @@ func (c *Config) Validate() error {
 
 	if c.Storage.Backend == "memory" && c.Storage.MaxMemoryBytes <= 0 {
 		return fmt.Errorf("storage.max_memory_bytes must be positive for memory backend")
+	}
+
+	if c.Storage.Backend == "webdav" && c.Storage.WebDAV.Endpoint == "" {
+		return fmt.Errorf("storage.webdav.endpoint is required for webdav backend")
+	}
+
+	if c.Storage.Backend == "webdav" && c.Storage.WebDAV.Endpoint != "" {
+		if !strings.HasPrefix(c.Storage.WebDAV.Endpoint, "http://") && !strings.HasPrefix(c.Storage.WebDAV.Endpoint, "https://") {
+			return fmt.Errorf("storage.webdav.endpoint %q must include a scheme (http:// or https://)", c.Storage.WebDAV.Endpoint)
+		}
 	}
 
 	return nil

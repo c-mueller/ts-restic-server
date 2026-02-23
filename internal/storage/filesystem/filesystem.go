@@ -12,14 +12,15 @@ import (
 )
 
 type Backend struct {
-	basePath string
+	basePath     string
+	dataSharding bool
 }
 
-func New(basePath string) (*Backend, error) {
+func New(basePath string, dataSharding bool) (*Backend, error) {
 	if err := os.MkdirAll(basePath, 0o700); err != nil {
 		return nil, fmt.Errorf("create storage directory %s: %w", basePath, err)
 	}
-	return &Backend{basePath: basePath}, nil
+	return &Backend{basePath: basePath, dataSharding: dataSharding}, nil
 }
 
 func (b *Backend) CreateRepo(ctx context.Context) error {
@@ -32,9 +33,13 @@ func (b *Backend) CreateRepo(ctx context.Context) error {
 		filepath.Join(rp, "index"),
 	}
 
-	// Create data/00 - data/ff subdirectories
-	for i := 0; i < 256; i++ {
-		dirs = append(dirs, filepath.Join(rp, "data", fmt.Sprintf("%02x", i)))
+	if b.dataSharding {
+		// Create data/00 - data/ff subdirectories
+		for i := 0; i < 256; i++ {
+			dirs = append(dirs, filepath.Join(rp, "data", fmt.Sprintf("%02x", i)))
+		}
+	} else {
+		dirs = append(dirs, filepath.Join(rp, "data"))
 	}
 
 	for _, dir := range dirs {
@@ -168,7 +173,7 @@ func (b *Backend) typePath(ctx context.Context, t storage.BlobType) string {
 }
 
 func (b *Backend) blobPath(ctx context.Context, t storage.BlobType, name string) string {
-	if t == storage.BlobData && len(name) >= 2 {
+	if t == storage.BlobData && b.dataSharding && len(name) >= 2 {
 		return filepath.Join(b.repoPath(ctx), "data", name[:2], name)
 	}
 	return filepath.Join(b.repoPath(ctx), string(t), name)
