@@ -25,3 +25,7 @@ storage:
     username: ""
     password: ""
     prefix: ""            # optional path prefix within the WebDAV server
+  rclone:
+    endpoint: ""          # rclone serve restic URL (e.g. http://localhost:8080)
+    username: ""          # optional basic auth username
+    password: ""          # optional basic auth password

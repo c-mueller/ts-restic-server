@@ -29,6 +29,13 @@ type Storage struct {
 	DataSharding   bool   `mapstructure:"data_sharding"`
 	S3             S3     `mapstructure:"s3"`
 	WebDAV         WebDAV `mapstructure:"webdav"`
+	Rclone         Rclone `mapstructure:"rclone"`
+}
+
+type Rclone struct {
+	Endpoint string `mapstructure:"endpoint"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }
 
 type WebDAV struct {
@@ -92,9 +99,9 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.Storage.Backend {
-	case "filesystem", "s3", "memory", "webdav":
+	case "filesystem", "s3", "memory", "webdav", "rclone":
 	default:
-		return fmt.Errorf("invalid storage.backend %q: must be \"filesystem\", \"s3\", \"memory\", or \"webdav\"", c.Storage.Backend)
+		return fmt.Errorf("invalid storage.backend %q: must be \"filesystem\", \"s3\", \"memory\", \"webdav\", or \"rclone\"", c.Storage.Backend)
 	}
 
 	if c.Storage.Backend == "filesystem" && c.Storage.Path == "" {
@@ -122,6 +129,16 @@ func (c *Config) Validate() error {
 	if c.Storage.Backend == "webdav" && c.Storage.WebDAV.Endpoint != "" {
 		if !strings.HasPrefix(c.Storage.WebDAV.Endpoint, "http://") && !strings.HasPrefix(c.Storage.WebDAV.Endpoint, "https://") {
 			return fmt.Errorf("storage.webdav.endpoint %q must include a scheme (http:// or https://)", c.Storage.WebDAV.Endpoint)
+		}
+	}
+
+	if c.Storage.Backend == "rclone" && c.Storage.Rclone.Endpoint == "" {
+		return fmt.Errorf("storage.rclone.endpoint is required for rclone backend")
+	}
+
+	if c.Storage.Backend == "rclone" && c.Storage.Rclone.Endpoint != "" {
+		if !strings.HasPrefix(c.Storage.Rclone.Endpoint, "http://") && !strings.HasPrefix(c.Storage.Rclone.Endpoint, "https://") {
+			return fmt.Errorf("storage.rclone.endpoint %q must include a scheme (http:// or https://)", c.Storage.Rclone.Endpoint)
 		}
 	}
 
