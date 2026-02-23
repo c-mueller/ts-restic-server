@@ -166,6 +166,45 @@ restic -r rest:http://localhost:8880/host-b/daily init
 # These are completely independent repositories
 ```
 
+## FAQ
+
+### Can I run this without Tailscale?
+
+Yes. Set `listen_mode: plain` (the default) and the server listens on a regular TCP port. However, plain mode serves unencrypted HTTP. For production use without Tailscale, you should place the server behind a reverse proxy (e.g. nginx, Caddy, Traefik) that handles TLS termination. The server itself does not support standalone TLS certificates — it's either Tailscale-managed TLS or plain HTTP.
+
+Example with Caddy:
+```
+restic.example.com {
+    reverse_proxy localhost:8880
+}
+```
+
+### What storage backends are available?
+
+- **Filesystem** — local disk storage with restic's standard directory layout. Default and simplest option.
+- **S3-compatible** — any S3-compatible object storage. Supports custom endpoints for non-AWS providers.
+- **In-Memory** — ephemeral storage for testing. Data is lost on restart. Configurable memory cap.
+
+### Which S3 providers have been tested?
+
+So far only **Hetzner Object Storage** has been tested. AWS S3 and MinIO should work but have not been verified yet. If you successfully use another provider, please open an issue or PR to help expand this list.
+
+### Why is there no Dockerfile?
+
+This project is in early development. Dockerfiles, systemd units, and pre-built binaries are planned but not yet provided. For now, build from source with `go build`. Contributions are welcome!
+
+### Does it support authentication?
+
+Not currently. The intended primary deployment is via Tailscale, which provides identity and access control at the network level. If you run in plain mode, anyone who can reach the server can access all repositories. Use a reverse proxy with authentication or restrict network access accordingly. Path-based ACLs tied to Tailscale identities are planned as a future feature.
+
+### Can I host multiple repositories on one server?
+
+Yes. Every URL path prefix creates an independent repository. For example, `/server-a/daily` and `/server-b/weekly` are completely isolated from each other, even though they share the same storage backend (same S3 bucket, same filesystem root, etc.). This works identically to the official restic REST server.
+
+### How does append-only mode work?
+
+With `append_only: true`, the server rejects all DELETE requests on blobs with HTTP 403, preventing data from being removed. Lock deletion remains allowed so that stale locks can still be cleaned up. This is useful as a safeguard against accidental or malicious data deletion.
+
 ## Disclaimer
 
 This project is not affiliated with or endorsed by the [restic](https://restic.net/) project or [Tailscale Inc.](https://tailscale.com/) Tailscale is a registered trademark of Tailscale Inc.
