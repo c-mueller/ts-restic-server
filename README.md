@@ -5,7 +5,7 @@ A [restic](https://restic.net/) REST server written in Go, implementing the offi
 ## Features
 
 - Full restic REST API (v1 and v2) compatibility
-- Multiple storage backends: Filesystem, S3-compatible, WebDAV, In-Memory
+- Multiple storage backends: Filesystem, S3-compatible, WebDAV, Rclone, In-Memory
 - Multi-repository support via URL path prefixes (e.g. `/host-a/backups`, `/host-b/docs`)
 - Optional Tailscale integration for TLS without certificates or port forwarding
 - Append-only mode (deletes blocked except for lock removal)
@@ -14,7 +14,59 @@ A [restic](https://restic.net/) REST server written in Go, implementing the offi
 
 ## Early Stage Notice
 
-This project is in early development and was largely vibe-coded with AI assistance. It may contain bugs or missing edge cases. There are no Dockerfiles, systemd units, or packages provided yet. **Pull requests and bug reports are welcome!**
+This project is in early development and was largely vibe-coded with AI assistance. It may contain bugs or missing edge cases. **Pull requests and bug reports are welcome!**
+
+## Docker
+
+```bash
+docker pull ghcr.io/c-mueller/ts-restic-server:latest
+```
+
+```bash
+docker run -d \
+  -p 8880:8880 \
+  -v ./config.yaml:/etc/ts-restic-server/config.yaml:ro \
+  -v restic-data:/data \
+  ghcr.io/c-mueller/ts-restic-server:latest \
+  serve --config /etc/ts-restic-server/config.yaml
+```
+
+Or with Docker Compose — create a directory with `compose.yaml` and `config.yaml`:
+
+```yaml
+# compose.yaml
+services:
+  ts-restic-server:
+    image: ghcr.io/c-mueller/ts-restic-server:latest
+    ports:
+      - "8880:8880"
+    volumes:
+      - ./config.yaml:/etc/ts-restic-server/config.yaml:ro
+      - data:/data
+    command: ["serve", "--config", "/etc/ts-restic-server/config.yaml"]
+    restart: unless-stopped
+
+volumes:
+  data:
+```
+
+```yaml
+# config.yaml
+listen: ":8880"
+listen_mode: plain
+storage:
+  backend: filesystem
+  path: /data
+  data_sharding: true
+```
+
+```bash
+docker compose up -d
+```
+
+Multi-arch images (amd64 + arm64) are published to `ghcr.io/c-mueller/ts-restic-server` on every push to master. Tagged releases are available under the corresponding tag name.
+
+See [docs/docker.md](docs/docker.md) for more details.
 
 ## Building
 
@@ -76,7 +128,7 @@ tailscale:
   auth_key: ""
 
 storage:
-  backend: filesystem     # "filesystem", "s3", "webdav", "memory"
+  backend: filesystem     # "filesystem", "s3", "webdav", "rclone", "memory"
   path: ./restic_data
   max_memory_bytes: 104857600  # 100MB for memory backend
   data_sharding: true          # split data/ into 256 subdirs (00-ff); for filesystem and webdav
@@ -103,7 +155,7 @@ storage:
 | `--listen-mode` | `plain` or `tailscale` |
 | `--append-only` | Enable append-only mode |
 | `--log-level` | `debug`, `info`, `warn`, `error` |
-| `--storage-backend` | `filesystem`, `s3`, `webdav`, `memory` |
+| `--storage-backend` | `filesystem`, `s3`, `webdav`, `rclone`, `memory` |
 | `--storage-path` | Path for filesystem backend |
 
 ## Storage Backends
@@ -146,6 +198,19 @@ storage:
     username: myuser
     password: mypassword
     prefix: backups            # optional subdirectory within the WebDAV server
+```
+
+### Rclone
+
+Proxies all storage operations to a remote restic REST server, such as [`rclone serve restic`](https://rclone.org/commands/rclone_serve_restic/). This enables using any of rclone's 70+ supported cloud providers as storage.
+
+```yaml
+storage:
+  backend: rclone
+  rclone:
+    endpoint: http://localhost:8080
+    username: ""       # optional basic auth
+    password: ""
 ```
 
 ### In-Memory
@@ -205,15 +270,12 @@ restic.example.com {
 - **Filesystem** — local disk storage with restic's standard directory layout. Default and simplest option.
 - **S3-compatible** — any S3-compatible object storage. Supports custom endpoints for non-AWS providers.
 - **WebDAV** — any WebDAV-compatible cloud storage (Nextcloud, ownCloud, HiDrive, Box, etc.).
+- **Rclone** — proxies to `rclone serve restic` or any restic REST server. Access 70+ cloud providers via rclone.
 - **In-Memory** — ephemeral storage for testing. Data is lost on restart. Configurable memory cap.
 
 ### Which S3 providers have been tested?
 
 So far only **Hetzner Object Storage** has been tested. AWS S3 and MinIO should work but have not been verified yet. If you successfully use another provider, please open an issue or PR to help expand this list.
-
-### Why is there no Dockerfile?
-
-This project is in early development. Dockerfiles, systemd units, and pre-built binaries are planned but not yet provided. For now, build from source with `go build`. Contributions are welcome!
 
 ### Does it support authentication?
 
