@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,6 +30,7 @@ func (h *Handler) HeadBlob(c echo.Context) error {
 	}
 
 	c.Response().Header().Set("Content-Length", formatInt64(size))
+	c.Response().Header().Set("Accept-Ranges", "bytes")
 	return c.NoContent(http.StatusOK)
 }
 
@@ -43,7 +45,46 @@ func (h *Handler) GetBlob(c echo.Context) error {
 
 	offset, length, rangeRequested := parseRange(c)
 
-	rc, err := h.Backend.GetBlob(ctx, t, name, offset, length)
+	if rangeRequested {
+		// Get total size for range validation and Content-Range header
+		totalSize, err := h.Backend.StatBlob(ctx, t, name)
+		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				return c.NoContent(http.StatusNotFound)
+			}
+			h.Logger.Error("stat blob failed", zap.String("request_id", reqID), zap.Error(err))
+			return c.NoContent(http.StatusInternalServerError)
+		}
+
+		// Validate range start
+		if offset >= totalSize {
+			c.Response().Header().Set("Content-Range", fmt.Sprintf("bytes */%d", totalSize))
+			return c.NoContent(http.StatusRequestedRangeNotSatisfiable)
+		}
+
+		// Clamp length to available data
+		if length <= 0 || offset+length > totalSize {
+			length = totalSize - offset
+		}
+
+		rc, err := h.Backend.GetBlob(ctx, t, name, offset, length)
+		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				return c.NoContent(http.StatusNotFound)
+			}
+			h.Logger.Error("get blob failed", zap.String("request_id", reqID), zap.Error(err))
+			return c.NoContent(http.StatusInternalServerError)
+		}
+		defer rc.Close()
+
+		end := offset + length - 1
+		c.Response().Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", offset, end, totalSize))
+		c.Response().Header().Set("Content-Length", formatInt64(length))
+		c.Response().Header().Set("Accept-Ranges", "bytes")
+		return c.Stream(http.StatusPartialContent, "application/octet-stream", rc)
+	}
+
+	rc, err := h.Backend.GetBlob(ctx, t, name, 0, 0)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return c.NoContent(http.StatusNotFound)
@@ -53,11 +94,7 @@ func (h *Handler) GetBlob(c echo.Context) error {
 	}
 	defer rc.Close()
 
-	status := http.StatusOK
-	if rangeRequested {
-		status = http.StatusPartialContent
-	}
-	return c.Stream(status, "application/octet-stream", rc)
+	return c.Stream(http.StatusOK, "application/octet-stream", rc)
 }
 
 func (h *Handler) SaveBlob(c echo.Context) error {
