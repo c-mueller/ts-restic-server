@@ -11,8 +11,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/chrismcg/ts-restic-server/internal/middleware"
 	"github.com/chrismcg/ts-restic-server/internal/storage"
 )
 
@@ -22,9 +24,15 @@ type Backend struct {
 	prefix string
 }
 
-func New(ctx context.Context, bucket, prefix, region, endpoint string) (*Backend, error) {
+func New(ctx context.Context, bucket, prefix, region, endpoint, accessKey, secretKey string) (*Backend, error) {
 	opts := []func(*awsconfig.LoadOptions) error{
 		awsconfig.WithRegion(region),
+	}
+
+	if accessKey != "" && secretKey != "" {
+		opts = append(opts, awsconfig.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
+		))
 	}
 
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
@@ -53,7 +61,7 @@ func (b *Backend) CreateRepo(ctx context.Context) error {
 	// Create a marker object to indicate repo exists
 	_, err := b.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.key("repo.marker")),
+		Key:    aws.String(b.key(ctx, "repo.marker")),
 		Body:   bytes.NewReader([]byte{}),
 	})
 	return err
@@ -63,7 +71,7 @@ func (b *Backend) DeleteRepo(ctx context.Context) error {
 	// List and delete all objects with our prefix
 	paginator := s3.NewListObjectsV2Paginator(b.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(b.bucket),
-		Prefix: aws.String(b.prefixPath()),
+		Prefix: aws.String(b.prefixPath(ctx)),
 	})
 
 	for paginator.HasMorePages() {
@@ -96,7 +104,7 @@ func (b *Backend) DeleteRepo(ctx context.Context) error {
 func (b *Backend) StatConfig(ctx context.Context) (int64, error) {
 	out, err := b.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.key("config")),
+		Key:    aws.String(b.key(ctx, "config")),
 	})
 	if err != nil {
 		if isNotFound(err) {
@@ -113,7 +121,7 @@ func (b *Backend) StatConfig(ctx context.Context) (int64, error) {
 func (b *Backend) GetConfig(ctx context.Context) (io.ReadCloser, error) {
 	out, err := b.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.key("config")),
+		Key:    aws.String(b.key(ctx, "config")),
 	})
 	if err != nil {
 		if isNotFound(err) {
@@ -132,7 +140,7 @@ func (b *Backend) SaveConfig(ctx context.Context, data io.Reader) error {
 
 	_, err = b.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.key("config")),
+		Key:    aws.String(b.key(ctx, "config")),
 		Body:   bytes.NewReader(buf),
 	})
 	return err
@@ -141,7 +149,7 @@ func (b *Backend) SaveConfig(ctx context.Context, data io.Reader) error {
 func (b *Backend) StatBlob(ctx context.Context, t storage.BlobType, name string) (int64, error) {
 	out, err := b.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.blobKey(t, name)),
+		Key:    aws.String(b.blobKey(ctx, t, name)),
 	})
 	if err != nil {
 		if isNotFound(err) {
@@ -158,7 +166,7 @@ func (b *Backend) StatBlob(ctx context.Context, t storage.BlobType, name string)
 func (b *Backend) GetBlob(ctx context.Context, t storage.BlobType, name string, offset, length int64) (io.ReadCloser, error) {
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.blobKey(t, name)),
+		Key:    aws.String(b.blobKey(ctx, t, name)),
 	}
 
 	if offset > 0 || length > 0 {
@@ -189,7 +197,7 @@ func (b *Backend) SaveBlob(ctx context.Context, t storage.BlobType, name string,
 
 	_, err = b.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.blobKey(t, name)),
+		Key:    aws.String(b.blobKey(ctx, t, name)),
 		Body:   bytes.NewReader(buf),
 	})
 	return err
@@ -199,7 +207,7 @@ func (b *Backend) DeleteBlob(ctx context.Context, t storage.BlobType, name strin
 	// Check existence first (S3 DeleteObject doesn't error on missing keys)
 	_, err := b.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.blobKey(t, name)),
+		Key:    aws.String(b.blobKey(ctx, t, name)),
 	})
 	if err != nil {
 		if isNotFound(err) {
@@ -210,13 +218,13 @@ func (b *Backend) DeleteBlob(ctx context.Context, t storage.BlobType, name strin
 
 	_, err = b.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.blobKey(t, name)),
+		Key:    aws.String(b.blobKey(ctx, t, name)),
 	})
 	return err
 }
 
 func (b *Backend) ListBlobs(ctx context.Context, t storage.BlobType) ([]storage.Blob, error) {
-	prefix := b.key(string(t)) + "/"
+	prefix := b.key(ctx, string(t)) + "/"
 	var blobs []storage.Blob
 
 	paginator := s3.NewListObjectsV2Paginator(b.client, &s3.ListObjectsV2Input{
@@ -246,23 +254,38 @@ func (b *Backend) ListBlobs(ctx context.Context, t storage.BlobType) ([]storage.
 	return blobs, nil
 }
 
-func (b *Backend) prefixPath() string {
+func (b *Backend) repoPrefix(ctx context.Context) string {
+	parts := []string{}
 	if b.prefix != "" {
-		return b.prefix + "/"
+		parts = append(parts, b.prefix)
+	}
+	if rp := middleware.GetRepoPrefix(ctx); rp != "" {
+		parts = append(parts, rp)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return strings.Join(parts, "/")
+}
+
+func (b *Backend) prefixPath(ctx context.Context) string {
+	p := b.repoPrefix(ctx)
+	if p != "" {
+		return p + "/"
 	}
 	return ""
 }
 
-func (b *Backend) key(parts ...string) string {
+func (b *Backend) key(ctx context.Context, parts ...string) string {
 	k := path.Join(parts...)
-	if b.prefix != "" {
-		k = b.prefix + "/" + k
+	if p := b.repoPrefix(ctx); p != "" {
+		k = p + "/" + k
 	}
 	return k
 }
 
-func (b *Backend) blobKey(t storage.BlobType, name string) string {
-	return b.key(string(t), name)
+func (b *Backend) blobKey(ctx context.Context, t storage.BlobType, name string) string {
+	return b.key(ctx, string(t), name)
 }
 
 func isNotFound(err error) bool {

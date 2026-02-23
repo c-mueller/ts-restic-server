@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -29,10 +30,12 @@ type Storage struct {
 }
 
 type S3 struct {
-	Bucket   string `mapstructure:"bucket"`
-	Prefix   string `mapstructure:"prefix"`
-	Region   string `mapstructure:"region"`
-	Endpoint string `mapstructure:"endpoint"`
+	Bucket    string `mapstructure:"bucket"`
+	Prefix    string `mapstructure:"prefix"`
+	Region    string `mapstructure:"region"`
+	Endpoint  string `mapstructure:"endpoint"`
+	AccessKey string `mapstructure:"access_key"`
+	SecretKey string `mapstructure:"secret_key"`
 }
 
 func SetDefaults() {
@@ -41,9 +44,9 @@ func SetDefaults() {
 	viper.SetDefault("append_only", false)
 	viper.SetDefault("log_level", "info")
 	viper.SetDefault("tailscale.hostname", "restic-server")
-	viper.SetDefault("tailscale.state_dir", "/var/lib/ts-restic")
+	viper.SetDefault("tailscale.state_dir", "./ts-state")
 	viper.SetDefault("storage.backend", "filesystem")
-	viper.SetDefault("storage.path", "/var/lib/restic")
+	viper.SetDefault("storage.path", "./restic_data")
 	viper.SetDefault("storage.max_memory_bytes", 104857600) // 100MB
 }
 
@@ -90,6 +93,12 @@ func (c *Config) Validate() error {
 
 	if c.Storage.Backend == "s3" && c.Storage.S3.Bucket == "" {
 		return fmt.Errorf("storage.s3.bucket is required for s3 backend")
+	}
+
+	if c.Storage.Backend == "s3" && c.Storage.S3.Endpoint != "" {
+		if !strings.HasPrefix(c.Storage.S3.Endpoint, "http://") && !strings.HasPrefix(c.Storage.S3.Endpoint, "https://") {
+			return fmt.Errorf("storage.s3.endpoint %q must include a scheme (http:// or https://)", c.Storage.S3.Endpoint)
+		}
 	}
 
 	if c.Storage.Backend == "memory" && c.Storage.MaxMemoryBytes <= 0 {

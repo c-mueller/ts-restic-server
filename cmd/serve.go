@@ -89,7 +89,7 @@ func buildBackend(cfg *config.Config) (storage.Backend, error) {
 	case "filesystem":
 		return filesystem.New(cfg.Storage.Path)
 	case "s3":
-		return s3backend.New(context.Background(), cfg.Storage.S3.Bucket, cfg.Storage.S3.Prefix, cfg.Storage.S3.Region, cfg.Storage.S3.Endpoint)
+		return s3backend.New(context.Background(), cfg.Storage.S3.Bucket, cfg.Storage.S3.Prefix, cfg.Storage.S3.Region, cfg.Storage.S3.Endpoint, cfg.Storage.S3.AccessKey, cfg.Storage.S3.SecretKey)
 	default:
 		return nil, &config.ValidationError{Field: "storage.backend", Value: cfg.Storage.Backend}
 	}

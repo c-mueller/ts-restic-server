@@ -14,6 +14,9 @@ func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, a
 		AppendOnly: appendOnly,
 	}
 
+	// Pre-routing: strip repo path prefix before route matching
+	e.Pre(middleware.RepoPrefix())
+
 	e.Use(middleware.Recover(logger))
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Logger(logger))

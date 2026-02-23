@@ -5,15 +5,17 @@ log_level: info
 
 tailscale:
   hostname: restic-server
-  state_dir: /var/lib/ts-restic
+  state_dir: ./ts-state
   auth_key: ""            # TS_AUTHKEY or set via RESTIC_TAILSCALE_AUTH_KEY
 
 storage:
   backend: filesystem     # "filesystem", "s3", "memory"
-  path: /var/lib/restic
+  path: ./restic_data
   max_memory_bytes: 104857600  # 100MB for memory backend
   s3:
     bucket: my-bucket
     prefix: ""
     region: eu-central-1
     endpoint: ""          # custom S3 endpoint (e.g. MinIO)
+    access_key: ""        # leave empty to use AWS default credential chain
+    secret_key: ""

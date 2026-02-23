@@ -14,5 +14,8 @@ config.yaml
 .DS_Store
 Thumbs.db
 
+# Storage data
+restic_data/
+
 # Tailscale state
-*.state/
+ts-state/

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 
 	"github.com/chrismcg/ts-restic-server/internal/config"
 	"go.uber.org/zap"
@@ -30,6 +31,10 @@ func newPlainListener(addr string) (net.Listener, func(), error) {
 }
 
 func newTailscaleListener(ctx context.Context, cfg *config.Config, logger *zap.Logger) (net.Listener, func(), error) {
+	if err := os.MkdirAll(cfg.Tailscale.StateDir, 0o700); err != nil {
+		return nil, nil, fmt.Errorf("create tailscale state directory %s: %w", cfg.Tailscale.StateDir, err)
+	}
+
 	srv := &tsnet.Server{
 		Hostname: cfg.Tailscale.Hostname,
 		Dir:      cfg.Tailscale.StateDir,
@@ -41,7 +46,7 @@ func newTailscaleListener(ctx context.Context, cfg *config.Config, logger *zap.L
 		zap.String("state_dir", cfg.Tailscale.StateDir),
 	)
 
-	ln, err := srv.ListenTLS("tcp", cfg.Listen)
+	ln, err := srv.ListenTLS("tcp", ":443")
 	if err != nil {
 		srv.Close()
 		return nil, nil, fmt.Errorf("tailscale listen: %w", err)
