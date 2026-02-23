@@ -12,6 +12,16 @@ go build -o ts-restic-server .
 ./ts-restic-server serve --config config.yaml       # custom config
 ```
 
+## Docker
+
+Multi-arch image (amd64 + arm64) at `ghcr.io/c-mueller/ts-restic-server`.
+
+```bash
+docker pull ghcr.io/c-mueller/ts-restic-server:latest
+```
+
+See `docs/docker.md` for Compose setup.
+
 ## Project Structure
 
 - `main.go` — entry point, calls `cmd.Execute()`
@@ -37,6 +47,11 @@ go build -o ts-restic-server .
 - `internal/storage/filesystem/` — Filesystem backend (atomic writes, fsync, data/00-ff)
 - `internal/storage/s3/` — S3 backend (aws-sdk-go-v2, custom endpoints, static creds)
 - `internal/storage/webdav/` — WebDAV backend (gowebdav, Nextcloud/ownCloud/HiDrive/Box)
+- `internal/storage/rclone/` — Rclone backend (HTTP client proxying to restic REST server)
+- `tests/integration/` — Integration tests (full restic lifecycle per backend)
+- `docs/` — Documentation (Docker setup, testing)
+- `.github/workflows/docker.yml` — Docker build + push (multi-arch, ghcr.io)
+- `.github/workflows/test.yml` — CI: unit tests + integration test matrix
 
 ## Configuration
 
@@ -52,15 +67,28 @@ See `config.example.yaml` for all options.
 - **Filesystem**: atomic writes (temp + fsync + rename), optional data/00-ff sharding
 - **S3**: supports custom endpoints (MinIO, Hetzner, etc.), static or chain credentials
 - **WebDAV**: gowebdav client, flat structure per type (no data/00-ff sharding), Basic Auth
+- **Rclone**: HTTP client proxying to `rclone serve restic` or any restic REST server
 - **Tailscale**: tsnet ListenTLS on :443, state_dir for persistent keys
 - **No auth in v1**: Tailscale provides identity; ACLs are a future feature
 
 ## Testing
 
 ```bash
-# Quick smoke test with memory backend
-go run . serve --storage-backend memory --listen-mode plain
-RESTIC_PASSWORD=test restic -r rest:http://localhost:8880/test init
-RESTIC_PASSWORD=test restic -r rest:http://localhost:8880/test backup .
-RESTIC_PASSWORD=test restic -r rest:http://localhost:8880/test snapshots
+# All tests (unit + integration)
+go test ./...
+
+# Unit tests only (skips integration)
+go test -short ./...
+
+# Integration tests (requires restic binary)
+go test -v ./tests/integration/
+
+# Single backend
+go test -v -run TestMemoryBackend      ./tests/integration/
+go test -v -run TestFilesystemBackend  ./tests/integration/
+go test -v -run TestWebDAVBackend      ./tests/integration/
+go test -v -run TestRcloneBackend      ./tests/integration/
+go test -v -run TestS3Backend          ./tests/integration/  # requires Docker
 ```
+
+Integration tests exercise the full restic lifecycle (init, backup, restore, verify, forget+prune) against each backend. Tests skip gracefully when prerequisites are missing (no restic binary, no Docker). See `docs/testing.md` for details.
