@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/chrismcg/ts-restic-server/internal/middleware"
-	"github.com/chrismcg/ts-restic-server/internal/storage"
+	"github.com/c-mueller/ts-restic-server/internal/middleware"
+	"github.com/c-mueller/ts-restic-server/internal/storage"
 )
 
 type Backend struct {

@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/chrismcg/ts-restic-server/internal/storage"
+	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"go.uber.org/zap"
 )
 

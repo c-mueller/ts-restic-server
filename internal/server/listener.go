@@ -6,7 +6,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/chrismcg/ts-restic-server/internal/config"
+	"github.com/c-mueller/ts-restic-server/internal/config"
 	"go.uber.org/zap"
 	"tailscale.com/tsnet"
 )

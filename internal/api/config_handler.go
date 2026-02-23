@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/chrismcg/ts-restic-server/internal/middleware"
-	"github.com/chrismcg/ts-restic-server/internal/storage"
+	"github.com/c-mueller/ts-restic-server/internal/middleware"
+	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )

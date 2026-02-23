@@ -1,4 +1,4 @@
-module github.com/chrismcg/ts-restic-server
+module github.com/c-mueller/ts-restic-server
 
 go 1.25.5
 

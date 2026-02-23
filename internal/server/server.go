@@ -4,9 +4,9 @@ import (
 	"context"
 	"net"
 
-	"github.com/chrismcg/ts-restic-server/internal/api"
-	"github.com/chrismcg/ts-restic-server/internal/config"
-	"github.com/chrismcg/ts-restic-server/internal/storage"
+	"github.com/c-mueller/ts-restic-server/internal/api"
+	"github.com/c-mueller/ts-restic-server/internal/config"
+	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )

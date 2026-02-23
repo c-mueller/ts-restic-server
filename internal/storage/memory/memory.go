@@ -6,8 +6,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/chrismcg/ts-restic-server/internal/middleware"
-	"github.com/chrismcg/ts-restic-server/internal/storage"
+	"github.com/c-mueller/ts-restic-server/internal/middleware"
+	"github.com/c-mueller/ts-restic-server/internal/storage"
 )
 
 type repo struct {
