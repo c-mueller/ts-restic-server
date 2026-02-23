@@ -1,49 +1,64 @@
 # ts-restic-server
 
-A Restic REST server in Go implementing the official REST backend API (v1 + v2) with pluggable storage backends and optional Tailscale listener.
+Restic REST server (v1 + v2 API) in Go with pluggable storage backends and optional Tailscale listener.
 
 ## Build & Run
 
 ```bash
 go build -o ts-restic-server .
-./ts-restic-server serve
+./ts-restic-server serve                            # filesystem backend, :8880
 ./ts-restic-server serve --storage-backend memory   # in-memory backend
+./ts-restic-server serve --listen-mode tailscale    # Tailscale TLS on :443
 ./ts-restic-server serve --config config.yaml       # custom config
 ```
 
 ## Project Structure
 
 - `main.go` — entry point, calls `cmd.Execute()`
-- `cmd/` — Cobra commands (root, serve)
+- `cmd/root.go` — Cobra root command + Viper config init
+- `cmd/serve.go` — `serve` command: wires config, backend, logger, server
 - `internal/config/` — Config structs, defaults, validation
-- `internal/server/` — Server + listener factory (plain TCP / tsnet)
-- `internal/api/` — Echo routes, handlers, version negotiation
-- `internal/middleware/` — Request ID, structured logging, panic recovery
-- `internal/storage/` — Backend interface + implementations (memory, filesystem, s3)
+- `internal/server/server.go` — Server struct: Echo + logger + backend, Run/Shutdown
+- `internal/server/listener.go` — Listener factory: plain TCP vs tsnet (TLS on :443)
+- `internal/api/router.go` — Registers all Echo routes + middleware
+- `internal/api/handler.go` — Handler struct (backend + logger refs)
+- `internal/api/repo.go` — POST /?create=true, DELETE / (repo management)
+- `internal/api/config_handler.go` — HEAD/GET/POST /config
+- `internal/api/blob.go` — HEAD/GET/POST/DELETE /:type/:name
+- `internal/api/list.go` — GET /:type/ (v1: string[], v2: {name,size}[])
+- `internal/api/version.go` — API version negotiation (Accept header)
+- `internal/middleware/requestid.go` — UUID per request, X-Request-ID header
+- `internal/middleware/logger.go` — Zap structured request logging
+- `internal/middleware/recover.go` — Panic recovery
+- `internal/middleware/repoprefix.go` — Extracts repo path prefix, rewrites URL for routing
+- `internal/storage/backend.go` — Backend interface
+- `internal/storage/types.go` — BlobType, Blob struct, sentinel errors
+- `internal/storage/memory/` — In-memory backend (configurable cap, sync.RWMutex)
+- `internal/storage/filesystem/` — Filesystem backend (atomic writes, fsync, data/00-ff)
+- `internal/storage/s3/` — S3 backend (aws-sdk-go-v2, custom endpoints, static creds)
 
 ## Configuration
 
-Priority: CLI flags > config file > environment variables (prefix `RESTIC_`).
+Priority: CLI flags > config file (`--config`) > env vars (prefix `RESTIC_`, e.g. `RESTIC_STORAGE_BACKEND`).
+
+See `config.example.yaml` for all options.
+
+## Key Design Decisions
+
+- **Multi-repo**: URL path prefix (e.g. `/host/backup`) scopes storage per repo
+- **Append-only**: DELETE on blobs returns 403, lock deletion stays allowed
+- **Memory backend**: shared quota across all repos, ErrQuotaExceeded on overflow
+- **Filesystem**: atomic writes (temp + fsync + rename), data/00-ff subdirectories
+- **S3**: supports custom endpoints (MinIO, Hetzner, etc.), static or chain credentials
+- **Tailscale**: tsnet ListenTLS on :443, state_dir for persistent keys
+- **No auth in v1**: Tailscale provides identity; ACLs are a future feature
 
 ## Testing
 
 ```bash
-# Start with memory backend
-go run . serve --storage-backend memory
-
-# Test with curl
-curl -X POST http://localhost:8880/?create=true
-curl -X POST --data-binary @testfile http://localhost:8880/config
-curl http://localhost:8880/config
-
-# Test with restic
-restic -r rest:http://localhost:8880/ init
+# Quick smoke test with memory backend
+go run . serve --storage-backend memory --listen-mode plain
+RESTIC_PASSWORD=test restic -r rest:http://localhost:8880/test init
+RESTIC_PASSWORD=test restic -r rest:http://localhost:8880/test backup .
+RESTIC_PASSWORD=test restic -r rest:http://localhost:8880/test snapshots
 ```
-
-## Key Design Decisions
-
-- Append-only mode: DELETE returns 403, except lock deletion stays allowed
-- Memory backend: 100MB cap, ErrQuotaExceeded on overflow
-- Filesystem backend: atomic writes with fsync, data/00-ff subdirectories
-- S3 backend: uses aws-sdk-go-v2, supports custom endpoints (MinIO etc.)
-- No auth in v1: Tailscale provides identity; ACLs are a future feature
