@@ -1,0 +1,52 @@
+name: Test
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  unit:
+    name: Unit & Vet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go vet ./...
+
+      - run: go test -short ./...
+
+  integration:
+    name: Integration (${{ matrix.backend }})
+    runs-on: ubuntu-latest
+    needs: unit
+    strategy:
+      fail-fast: false
+      matrix:
+        backend:
+          - Memory
+          - Filesystem
+          - Rclone
+          - WebDAV
+          - S3
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install restic
+        run: |
+          curl -fsSL https://github.com/restic/restic/releases/download/v0.17.3/restic_0.17.3_linux_amd64.bz2 \
+            | bunzip2 > /usr/local/bin/restic
+          chmod +x /usr/local/bin/restic
+          restic version
+
+      - name: Run integration test
+        run: go test -v -run 'Test${{ matrix.backend }}Backend' -count=1 -timeout=10m ./tests/integration/
