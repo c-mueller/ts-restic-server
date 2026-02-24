@@ -14,7 +14,7 @@ func Logger(logger *zap.Logger) echo.MiddlewareFunc {
 			err := next(c)
 
 			reqID := GetRequestID(c.Request().Context())
-			logger.Info("request",
+			fields := []zap.Field{
 				zap.String("request_id", reqID),
 				zap.String("method", c.Request().Method),
 				zap.String("path", c.Request().URL.Path),
@@ -22,7 +22,11 @@ func Logger(logger *zap.Logger) echo.MiddlewareFunc {
 				zap.String("ip", c.RealIP()),
 				zap.Int("status", c.Response().Status),
 				zap.Duration("duration", time.Since(start)),
-			)
+			}
+			if ids := GetIdentity(c.Request().Context()); len(ids) > 1 {
+				fields = append(fields, zap.Strings("identities", ids))
+			}
+			logger.Info("request", fields...)
 
 			return err
 		}

@@ -49,7 +49,7 @@ func startServer(t *testing.T, backend storage.Backend) string {
 		Storage:    config.Storage{Backend: "test"},
 	}
 	logger := zap.NewNop()
-	srv := server.New(cfg, backend, logger)
+	srv := server.New(cfg, backend, logger, nil, nil, nil, nil)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

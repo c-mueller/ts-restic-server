@@ -11,12 +11,12 @@ import (
 	"tailscale.com/tsnet"
 )
 
-func NewListener(ctx context.Context, cfg *config.Config, logger *zap.Logger) (net.Listener, func(), error) {
+func NewListener(ctx context.Context, cfg *config.Config, logger *zap.Logger, tsServer *tsnet.Server) (net.Listener, func(), error) {
 	switch cfg.ListenMode {
 	case "plain":
 		return newPlainListener(cfg.Listen)
 	case "tailscale":
-		return newTailscaleListener(ctx, cfg, logger)
+		return newTailscaleListener(ctx, cfg, logger, tsServer)
 	default:
 		return nil, nil, fmt.Errorf("unknown listen_mode: %s", cfg.ListenMode)
 	}
@@ -30,15 +30,20 @@ func newPlainListener(addr string) (net.Listener, func(), error) {
 	return ln, nil, nil
 }
 
-func newTailscaleListener(ctx context.Context, cfg *config.Config, logger *zap.Logger) (net.Listener, func(), error) {
+func newTailscaleListener(ctx context.Context, cfg *config.Config, logger *zap.Logger, tsServer *tsnet.Server) (net.Listener, func(), error) {
 	if err := os.MkdirAll(cfg.Tailscale.StateDir, 0o700); err != nil {
 		return nil, nil, fmt.Errorf("create tailscale state directory %s: %w", cfg.Tailscale.StateDir, err)
 	}
 
-	srv := &tsnet.Server{
-		Hostname: cfg.Tailscale.Hostname,
-		Dir:      cfg.Tailscale.StateDir,
-		AuthKey:  cfg.Tailscale.AuthKey,
+	// Use externally provided tsnet.Server if available; otherwise create one locally.
+	ownServer := false
+	if tsServer == nil {
+		tsServer = &tsnet.Server{
+			Hostname: cfg.Tailscale.Hostname,
+			Dir:      cfg.Tailscale.StateDir,
+			AuthKey:  cfg.Tailscale.AuthKey,
+		}
+		ownServer = true
 	}
 
 	logger.Info("starting tailscale node",
@@ -46,15 +51,19 @@ func newTailscaleListener(ctx context.Context, cfg *config.Config, logger *zap.L
 		zap.String("state_dir", cfg.Tailscale.StateDir),
 	)
 
-	ln, err := srv.ListenTLS("tcp", ":443")
+	ln, err := tsServer.ListenTLS("tcp", ":443")
 	if err != nil {
-		srv.Close()
+		if ownServer {
+			tsServer.Close()
+		}
 		return nil, nil, fmt.Errorf("tailscale listen: %w", err)
 	}
 
 	cleanup := func() {
 		ln.Close()
-		srv.Close()
+		if ownServer {
+			tsServer.Close()
+		}
 	}
 
 	return ln, cleanup, nil
