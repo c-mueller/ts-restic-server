@@ -1,8 +1,8 @@
 # Access Control Lists (ACL)
 
-ts-restic-server bietet eine feingranulare Zugriffskontrolle per Identity und Repository-Pfad. Ohne konfigurierte ACL werden alle Requests zugelassen.
+ts-restic-server provides fine-grained access control per identity and repository path. Without a configured ACL, all requests are allowed.
 
-## Schnellstart
+## Quick Start
 
 ```yaml
 acl:
@@ -16,61 +16,61 @@ acl:
       permission: read-only
 ```
 
-Mit dieser Konfiguration hat nur der Host `server-a` vollen Zugriff auf `/server-a`. Alle anderen Clients bekommen lesenden Zugriff auf alle Repositories.
+With this configuration, only the host `server-a` has full access to `/server-a`. All other clients get read-only access to all repositories.
 
-## Konzepte
+## Concepts
 
 ### Identities
 
-Jeder eingehende Request wird einer Liste von **Identities** zugeordnet. Diese bestehen je nach Modus aus:
+Each incoming request is associated with a list of **identities**. These vary by mode:
 
-| Modus | Identities | Beispiel |
+| Mode | Identities | Example |
 |---|---|---|
-| Tailscale (WhoIs) | IP, FQDN, Short-Hostname, Login-Name, Tags | `["100.64.0.1", "server.zuul-vibes.ts.net", "server", "alice@example.com", "tag:backup"]` |
-| Plain (mit rDNS) | IP, FQDN | `["10.0.0.5", "nas.home.arpa"]` |
-| Plain (ohne rDNS / Fehler) | nur IP | `["10.0.0.5"]` |
+| Tailscale (WhoIs) | IP, FQDN, short hostname, login name, tags | `["100.64.0.1", "server.zuul-vibes.ts.net", "server", "alice@example.com", "tag:backup"]` |
+| Plain (with rDNS) | IP, FQDN | `["10.0.0.5", "nas.home.arpa"]` |
+| Plain (no rDNS / error) | IP only | `["10.0.0.5"]` |
 
-Eine ACL-Regel matcht, sobald **eine beliebige** Identity des Requests mit **einer beliebigen** Identity der Regel übereinstimmt (N:M-Matching).
+An ACL rule matches when **any** identity of the request matches **any** identity of the rule (N:M matching).
 
 ### Permissions
 
-Es gibt vier Berechtigungsstufen (aufsteigend):
+There are four permission levels (ascending):
 
-| Permission | Lesen | Schreiben | Löschen |
+| Permission | Read | Write | Delete |
 |---|---|---|---|
 | `deny` | - | - | - |
-| `read-only` | ja | - | - |
-| `append-only` | ja | ja | - |
-| `full-access` | ja | ja | ja |
+| `read-only` | yes | - | - |
+| `append-only` | yes | yes | - |
+| `full-access` | yes | yes | yes |
 
-**Operationen und HTTP-Methoden:**
+**Operations and HTTP methods:**
 
-| Operation | HTTP-Methoden | Mindest-Permission |
+| Operation | HTTP Methods | Minimum Permission |
 |---|---|---|
 | Read | `GET`, `HEAD` | `read-only` |
 | Write | `POST`, `PUT`, `PATCH`, `DELETE /locks/*` | `append-only` |
-| Delete | `DELETE` (Blobs) | `full-access` |
+| Delete | `DELETE` (blobs) | `full-access` |
 
-Lock-Deletion (`DELETE /locks/*`) wird als Write-Operation gewertet, nicht als Delete. Das ermöglicht append-only-Clients, ihre eigenen Locks zu verwalten.
+Lock deletion (`DELETE /locks/*`) is treated as a write operation, not a delete. This allows append-only clients to manage their own locks.
 
-### Pfad-Matching
+### Path Matching
 
-Regel-Pfade matchen auf Segment-Grenzen als Prefix:
+Rule paths match on segment boundaries as a prefix:
 
-- `/server-a` matcht `/server-a` und `/server-a/sub/path`
-- `/server-a` matcht **nicht** `/server-ab` (keine Segment-Grenze)
-- `/` matcht alles
+- `/server-a` matches `/server-a` and `/server-a/sub/path`
+- `/server-a` does **not** match `/server-ab` (no segment boundary)
+- `/` matches everything
 
-### Kaskadierung
+### Cascading
 
-Wenn mehrere Regeln auf einen Request zutreffen:
+When multiple rules apply to a request:
 
-1. **Tiefster Pfad gewinnt**: Eine Regel auf `/server-a` hat Vorrang vor einer Regel auf `/`.
-2. **Deny ist absolut**: Wenn auf der tiefsten Matching-Ebene eine Deny-Regel existiert, wird der Zugriff verweigert, unabhängig von anderen Regeln auf derselben Ebene.
-3. **Höchste Permission gewinnt**: Wenn kein Deny vorliegt, gilt die höchste Permission auf der tiefsten Matching-Ebene.
-4. **Default-Role als Fallback**: Matcht keine Regel, greift `default_role`.
+1. **Deepest path wins**: A rule on `/server-a` takes precedence over a rule on `/`.
+2. **Deny is absolute**: If a deny rule exists at the deepest matching level, access is denied regardless of other rules at the same level.
+3. **Highest permission wins**: If no deny is present, the highest permission at the deepest matching level applies.
+4. **Default role as fallback**: If no rule matches, `default_role` is used.
 
-**Beispiel:**
+**Example:**
 
 ```yaml
 acl:
@@ -78,36 +78,36 @@ acl:
   rules:
     - paths: ["/"]
       identities: ["*"]
-      permission: read-only      # Ebene 0: alle dürfen lesen
+      permission: read-only      # level 0: everyone can read
     - paths: ["/server-a"]
       identities: ["server-a"]
-      permission: full-access    # Ebene 1: server-a hat vollen Zugriff
+      permission: full-access    # level 1: server-a has full access
     - paths: ["/private"]
       identities: ["*"]
-      permission: deny           # Ebene 1: /private ist gesperrt
+      permission: deny           # level 1: /private is locked
 ```
 
-| Client | Pfad | Ergebnis | Grund |
+| Client | Path | Result | Reason |
 |---|---|---|---|
-| `server-a` | `/server-a` | `full-access` | Regel auf Ebene 1 matcht |
-| `server-a` | `/other` | `read-only` | Fallback auf Ebene 0 (`/`) |
-| `server-b` | `/server-a` | `read-only` | Identity matcht nicht auf Ebene 1, Fallback auf Ebene 0 |
-| `*` | `/private` | `deny` | Deny auf Ebene 1 |
-| `server-x` | `/unknown` | `deny` | Keine Regel matcht, `default_role: deny` |
+| `server-a` | `/server-a` | `full-access` | Rule at level 1 matches |
+| `server-a` | `/other` | `read-only` | Fallback to level 0 (`/`) |
+| `server-b` | `/server-a` | `read-only` | Identity doesn't match at level 1, fallback to level 0 |
+| `*` | `/private` | `deny` | Deny at level 1 |
+| `server-x` | `/unknown` | `deny` | No rule matches, `default_role: deny` |
 
-## Identity-Auflösung
+## Identity Resolution
 
-### Tailscale-Modus (`listen_mode: tailscale`) — WhoIs
+### Tailscale Mode (`listen_mode: tailscale`) — WhoIs
 
-Im Tailscale-Modus werden Identities über die **Tailscale WhoIs-API** (`tsnet.Server.LocalClient().WhoIs()`) aufgelöst. Das liefert deutlich mehr Informationen als rDNS:
+In Tailscale mode, identities are resolved via the **Tailscale WhoIs API** (`tsnet.Server.LocalClient().WhoIs()`). This provides significantly more information than rDNS:
 
-- **IP** — Tailscale-IP (z.B. `100.64.0.1`)
-- **FQDN** — Tailscale-Hostname (z.B. `server.zuul-vibes.ts.net`)
-- **Short-Hostname** — ComputedName des Nodes (z.B. `server`)
-- **Login-Name** — Tailscale-User (z.B. `alice@example.com`)
-- **Tags** — Tailscale ACL-Tags (z.B. `tag:server`, `tag:backup`)
+- **IP** — Tailscale IP (e.g. `100.64.0.1`)
+- **FQDN** — Tailscale hostname (e.g. `server.zuul-vibes.ts.net`)
+- **Short hostname** — ComputedName of the node (e.g. `server`)
+- **Login name** — Tailscale user (e.g. `alice@example.com`)
+- **Tags** — Tailscale ACL tags (e.g. `tag:server`, `tag:backup`)
 
-Dies ermöglicht Regeln basierend auf Tags und Usern:
+This enables rules based on tags and users:
 
 ```yaml
 rules:
@@ -119,36 +119,36 @@ rules:
     permission: full-access
 ```
 
-Falls `LocalClient()` fehlschlägt, wird automatisch auf rDNS via MagicDNS zurückgefallen.
+If `LocalClient()` fails, the system automatically falls back to rDNS via MagicDNS.
 
-### Plain-Modus (`listen_mode: plain`)
+### Plain Mode (`listen_mode: plain`)
 
-- rDNS-Queries gehen an den **System-DNS** oder einen konfigurierten `dns_server`
-- Auflösung ergibt den FQDN (z.B. `nas.home.arpa`)
-- **Kein** Short-Hostname (da im Plain-Modus mehrdeutig)
+- rDNS queries go to the **system DNS** or a configured `dns_server`
+- Resolution yields the FQDN (e.g. `nas.home.arpa`)
+- **No** short hostname (ambiguous in plain mode)
 
 ### Graceful Degradation
 
-Schlägt ein WhoIs- oder rDNS-Lookup fehl (Timeout, NXDOMAIN, kein PTR-Record), wird nur die IP als Identity verwendet. Der Server lehnt den Request nicht ab — die ACL-Regeln werden mit der IP als einziger Identity ausgewertet.
+If a WhoIs or rDNS lookup fails (timeout, NXDOMAIN, no PTR record), only the IP is used as identity. The server does not reject the request — ACL rules are evaluated with the IP as the sole identity.
 
 ### Cache
 
-Identity-Ergebnisse (WhoIs und rDNS) werden gecached um wiederholte Lookups pro Request zu vermeiden:
+Identity results (WhoIs and rDNS) are cached to avoid repeated lookups per request:
 
-- **Default-TTL:** 600 Sekunden (10 Minuten)
-- **Negative Ergebnisse** (kein PTR-Record, Fehler) werden ebenfalls gecached
-- TTL ist konfigurierbar über `rdns_cache_ttl`
+- **Default TTL:** 600 seconds (10 minutes)
+- **Negative results** (no PTR record, errors) are also cached
+- TTL is configurable via `rdns_cache_ttl`
 
-## Konfiguration
+## Configuration
 
-### Vollständige Referenz
+### Full Reference
 
 ```yaml
 acl:
-  default_role: deny              # Fallback-Permission wenn keine Regel matcht
-  dns_server: ""                  # Custom DNS-Server für rDNS (host:port)
-  rdns_cache_ttl: 600             # Cache-TTL in Sekunden (Default: 600)
-  trusted_proxies:                # CIDRs vertrauenswürdiger Reverse-Proxies
+  default_role: deny              # fallback permission when no rule matches
+  dns_server: ""                  # custom DNS server for rDNS (host:port)
+  rdns_cache_ttl: 600             # cache TTL in seconds (default: 600)
+  trusted_proxies:                # CIDRs of trusted reverse proxies
     - 10.0.0.0/8
   rules:
     - paths: ["/server-a"]
@@ -156,31 +156,31 @@ acl:
       permission: full-access
 ```
 
-### Config-Optionen
+### Config Options
 
-| Option | Typ | Default | Beschreibung |
+| Option | Type | Default | Description |
 |---|---|---|---|
-| `default_role` | string | (pflicht) | `deny`, `read-only`, `append-only` oder `full-access` |
-| `dns_server` | string | `""` | Custom DNS-Server im Format `host:port`. Leer = System-DNS. Im Tailscale-Modus wird WhoIs verwendet (Fallback: MagicDNS `100.100.100.100:53`). |
-| `rdns_cache_ttl` | int | `600` | TTL für rDNS-Cache in Sekunden |
-| `trusted_proxies` | []string | `[]` | CIDR-Notationen vertrauenswürdiger Proxies für `X-Forwarded-For` |
-| `rules` | []Rule | `[]` | Liste von ACL-Regeln |
+| `default_role` | string | (required) | `deny`, `read-only`, `append-only`, or `full-access` |
+| `dns_server` | string | `""` | Custom DNS server in `host:port` format. Empty = system DNS. In Tailscale mode, WhoIs is used (fallback: MagicDNS `100.100.100.100:53`). |
+| `rdns_cache_ttl` | int | `600` | TTL for identity cache in seconds |
+| `trusted_proxies` | []string | `[]` | CIDR notations of trusted proxies for `X-Forwarded-For` |
+| `rules` | []Rule | `[]` | List of ACL rules |
 
-### Regel-Optionen
+### Rule Options
 
-| Option | Typ | Beschreibung |
+| Option | Type | Description |
 |---|---|---|
-| `paths` | []string | Repo-Pfade auf die die Regel zutrifft (Prefix-Match) |
-| `identities` | []string | Identities die matchen sollen. `"*"` = alle. |
-| `permission` | string | `deny`, `read-only`, `append-only` oder `full-access` |
+| `paths` | []string | Repository paths the rule applies to (prefix match) |
+| `identities` | []string | Identities to match. `"*"` = all. |
+| `permission` | string | `deny`, `read-only`, `append-only`, or `full-access` |
 
-### ACL deaktivieren
+### Disabling ACL
 
-Die ACL ist deaktiviert wenn der gesamte `acl:`-Block in der Config fehlt. Ohne ACL werden alle Requests zugelassen.
+The ACL is disabled when the entire `acl:` block is absent from the config. Without ACL, all requests are allowed.
 
 ## Trusted Proxies
 
-Wenn der Server hinter einem Reverse-Proxy läuft (Nginx, Caddy, etc.), muss die Client-IP aus dem `X-Forwarded-For`-Header extrahiert werden. Dafür müssen die Proxy-IPs als `trusted_proxies` konfiguriert werden:
+When the server runs behind a reverse proxy (Nginx, Caddy, etc.), the client IP must be extracted from the `X-Forwarded-For` header. For this, the proxy IPs must be configured as `trusted_proxies`:
 
 ```yaml
 acl:
@@ -191,17 +191,17 @@ acl:
   rules: [...]
 ```
 
-| Konfiguration | Verhalten |
+| Configuration | Behavior |
 |---|---|
-| Tailscale-Modus | Direkte Verbindung, keine Proxy-Header, `trusted_proxies` wird ignoriert |
-| Plain, keine `trusted_proxies` | Echo-Defaults (Loopback + Link-Local + private Netze werden vertraut) |
-| Plain, mit `trusted_proxies` | Nur die angegebenen CIDRs werden als Proxy vertraut |
+| Tailscale mode | Direct connection, no proxy headers, `trusted_proxies` is ignored |
+| Plain, no `trusted_proxies` | Echo defaults (loopback + link-local + private nets are trusted) |
+| Plain, with `trusted_proxies` | Only the specified CIDRs are trusted as proxies |
 
-## Beispiele
+## Examples
 
-### Tailscale: Ein Repo pro Host
+### Tailscale: One Repo per Host
 
-Jeder Tailscale-Host bekommt ein eigenes Repository mit vollem Zugriff. Alle anderen können lesen.
+Each Tailscale host gets its own repository with full access. All others can read.
 
 ```yaml
 listen_mode: tailscale
@@ -220,9 +220,9 @@ acl:
       permission: full-access
 ```
 
-### Tailscale: Tag-basierter Zugriff
+### Tailscale: Tag-based Access
 
-Alle Nodes mit dem Tag `tag:backup` bekommen vollen Zugriff auf ihre Repos.
+All nodes with the `tag:backup` tag get full access.
 
 ```yaml
 listen_mode: tailscale
@@ -235,9 +235,9 @@ acl:
       permission: full-access
 ```
 
-### Tailscale: User-basierter Zugriff
+### Tailscale: User-based Access
 
-Bestimmte Tailscale-User bekommen Zugriff auf dedizierte Repos.
+Specific Tailscale users get access to dedicated repos.
 
 ```yaml
 listen_mode: tailscale
@@ -256,7 +256,7 @@ acl:
       permission: read-only
 ```
 
-### Tailscale: Shared Repo mit FQDN
+### Tailscale: Shared Repo with FQDN
 
 ```yaml
 listen_mode: tailscale
@@ -274,7 +274,7 @@ acl:
       permission: read-only
 ```
 
-### Plain: IP-basiert mit Reverse-Proxy
+### Plain: IP-based with Reverse Proxy
 
 ```yaml
 listen_mode: plain
@@ -292,7 +292,7 @@ acl:
       permission: read-only
 ```
 
-### Plain: Hostname-basiert mit Custom DNS
+### Plain: Hostname-based with Custom DNS
 
 ```yaml
 listen_mode: plain
@@ -312,7 +312,7 @@ acl:
 
 ### Append-Only Backup
 
-Clients dürfen schreiben aber nicht löschen — ideal für Ransomware-Schutz:
+Clients can write but not delete — ideal for ransomware protection:
 
 ```yaml
 acl:
@@ -323,13 +323,13 @@ acl:
       permission: append-only
 ```
 
-> **Hinweis:** Für globalen Append-Only-Modus ohne Identity-basierte Differenzierung kann alternativ `append_only: true` auf Top-Level gesetzt werden. Die ACL bietet feinere Kontrolle pro Identity und Pfad.
+> **Note:** For global append-only mode without identity-based differentiation, you can alternatively set `append_only: true` at the top level. The ACL provides finer control per identity and path.
 
-## Fehlermeldung bei Zugriffsverweigerung
+## Error Response on Access Denial
 
-Wird ein Request durch die ACL abgelehnt, antwortet der Server mit `403 Forbidden` und einem JSON-Body, der die Identity des Requesters enthält. So kann der Client nachvollziehen, warum der Zugriff verweigert wurde.
+When a request is denied by the ACL, the server responds with `403 Forbidden` and a JSON body containing the requester's identity. This allows the client to understand why access was refused.
 
-**Tailscale-Modus** (mit WhoIs-Auflösung):
+**Tailscale mode** (with WhoIs resolution):
 
 ```json
 {
@@ -343,7 +343,7 @@ Wird ein Request durch die ACL abgelehnt, antwortet der Server mit `403 Forbidde
 }
 ```
 
-**Plain-Modus** (nur IP):
+**Plain mode** (IP only):
 
 ```json
 {
@@ -354,42 +354,42 @@ Wird ein Request durch die ACL abgelehnt, antwortet der Server mit `403 Forbidde
 }
 ```
 
-Felder wie `hostname`, `user` und `tags` erscheinen nur, wenn sie durch die WhoIs-Auflösung verfügbar sind.
+Fields like `hostname`, `user`, and `tags` only appear when available through WhoIs resolution.
 
 ## Logging
 
-### Access-Log
+### Access Log
 
-Der HTTP Access-Log enthält ein `identities`-Feld, sofern die Identity-Auflösung mehr als nur die IP ergeben hat (z.B. Hostname, Tags, User). Bei reiner IP wird das Feld weggelassen.
+The HTTP access log includes an `identities` field when identity resolution yielded more than just the IP (e.g. hostname, tags, user). When only the IP is available, the field is omitted.
 
-### ACL-Denied-Log
+### ACL Denied Log
 
-Bei Zugriffsverweigerungen loggt die ACL-Middleware eine `acl denied`-Warnung mit `request_id`, `identities`, `repo_path`, `operation`, `method` und `path`. Die `request_id` ermöglicht die Korrelation mit dem Access-Log.
+On access denials, the ACL middleware logs an `acl denied` warning with `request_id`, `identities`, `repo_path`, `operation`, `method`, and `path`. The `request_id` enables correlation with the access log.
 
-## Middleware-Reihenfolge
+## Middleware Order
 
-Die Request-Pipeline sieht so aus:
+The request pipeline looks like this:
 
 ```
 Request → RepoPrefix → Recover → RequestID → Logger → Identity → ACL → Handler
 ```
 
-1. **RepoPrefix** extrahiert den Repo-Pfad-Prefix und schreibt die URL um
-2. **Identity** löst die Client-IP per WhoIs (Tailscale) oder rDNS (Plain) auf und speichert die Identities im Context
-3. **ACL** liest die Identities aus dem Context und prüft gegen die Regeln
+1. **RepoPrefix** extracts the repo path prefix and rewrites the URL
+2. **Identity** resolves the client IP via WhoIs (Tailscale) or rDNS (plain) and stores the identities in the context
+3. **ACL** reads the identities from the context and checks against the rules
 
-## Architektur
+## Architecture
 
-### Relevante Dateien
+### Relevant Files
 
-| Datei | Beschreibung |
+| File | Description |
 |---|---|
-| `internal/config/config.go` | `ACLConfig`-Struct, Validation |
-| `internal/acl/acl.go` | ACL-Engine: Regelauswertung, Pfad- und Identity-Matching |
-| `internal/acl/acl_test.go` | Unit-Tests für die ACL-Engine |
-| `internal/middleware/identity.go` | WhoIs- und rDNS-Resolver, Cache, Identity-Middleware |
-| `internal/middleware/acl.go` | ACL-Middleware: liest Identities, erzwingt Permissions, JSON-Fehlermeldung |
-| `internal/middleware/logger.go` | HTTP Access-Log mit Identity-Feld |
-| `internal/server/server.go` | Server-Struct mit optionalem `*tsnet.Server` |
-| `internal/server/listener.go` | Akzeptiert externen `*tsnet.Server` |
-| `cmd/serve.go` | Wiring: tsnet-Erstellung, WhoIs-Adapter, `buildACLEngine`, `buildIPExtractor`, `buildIdentityMiddleware` |
+| `internal/config/config.go` | `ACLConfig` struct, validation |
+| `internal/acl/acl.go` | ACL engine: rule evaluation, path and identity matching |
+| `internal/acl/acl_test.go` | Unit tests for the ACL engine |
+| `internal/middleware/identity.go` | WhoIs and rDNS resolver, cache, identity middleware |
+| `internal/middleware/acl.go` | ACL middleware: reads identities, enforces permissions, JSON error response |
+| `internal/middleware/logger.go` | HTTP access log with identity field |
+| `internal/server/server.go` | Server struct with optional `*tsnet.Server` |
+| `internal/server/listener.go` | Accepts external `*tsnet.Server` |
+| `cmd/serve.go` | Wiring: tsnet creation, WhoIs adapter, `buildACLEngine`, `buildIPExtractor`, `buildIdentityMiddleware` |
