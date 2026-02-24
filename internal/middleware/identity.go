@@ -167,18 +167,61 @@ type WhoIsResult struct {
 // WhoIsFunc resolves a remote address (ip:port) to identity info.
 type WhoIsFunc func(ctx context.Context, remoteAddr string) (*WhoIsResult, error)
 
+// whoIsCache caches WhoIs lookup results (identities + structured result) with a configurable TTL.
+type whoIsCache struct {
+	mu      sync.RWMutex
+	entries map[string]whoIsCacheEntry
+	ttl     time.Duration
+}
+
+type whoIsCacheEntry struct {
+	ids    []string
+	result *WhoIsResult // nil for negative cache entries
+	expiry time.Time
+}
+
+func newWhoIsCache(ttl time.Duration) *whoIsCache {
+	return &whoIsCache{
+		entries: make(map[string]whoIsCacheEntry),
+		ttl:     ttl,
+	}
+}
+
+func (c *whoIsCache) Get(ip string) ([]string, *WhoIsResult, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	entry, ok := c.entries[ip]
+	if !ok || time.Now().After(entry.expiry) {
+		return nil, nil, false
+	}
+	return entry.ids, entry.result, true
+}
+
+func (c *whoIsCache) Set(ip string, ids []string, result *WhoIsResult) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.entries[ip] = whoIsCacheEntry{
+		ids:    ids,
+		result: result,
+		expiry: time.Now().Add(c.ttl),
+	}
+}
+
 // WhoIsIdentity returns middleware that resolves client identities via Tailscale WhoIs.
 // This provides richer identity info than rDNS: tags, user login, hostname.
 func WhoIsIdentity(whoIs WhoIsFunc, cacheTTL time.Duration, logger *zap.Logger) echo.MiddlewareFunc {
-	cache := newRDNSCache(cacheTTL)
+	cache := newWhoIsCache(cacheTTL)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			ip := c.RealIP()
 
 			// Check cache
-			if ids, ok := cache.Get(ip); ok {
+			if ids, result, ok := cache.Get(ip); ok {
 				setIdentity(c, ids)
+				if result != nil {
+					setWhoIsResult(c, result)
+				}
 				return next(c)
 			}
 
@@ -190,13 +233,13 @@ func WhoIsIdentity(whoIs WhoIsFunc, cacheTTL time.Duration, logger *zap.Logger) 
 			if err != nil {
 				logger.Debug("whois lookup failed", zap.String("ip", ip), zap.Error(err))
 				// Negative cache — avoid repeated lookups
-				cache.Set(ip, []string{ip})
+				cache.Set(ip, []string{ip}, nil)
 				setIdentity(c, []string{ip})
 				return next(c)
 			}
 
 			ids := buildWhoIsIdentifiers(ip, result)
-			cache.Set(ip, ids)
+			cache.Set(ip, ids, result)
 			logger.Debug("whois resolved", zap.String("ip", ip), zap.Strings("identities", ids))
 			setIdentity(c, ids)
 			setWhoIsResult(c, result)
