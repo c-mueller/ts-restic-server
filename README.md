@@ -8,6 +8,7 @@ A [restic](https://restic.net/) REST server written in Go, implementing the offi
 - Multiple storage backends: Filesystem, S3-compatible, WebDAV, Rclone, In-Memory
 - Multi-repository support via URL path prefixes (e.g. `/host-a/backups`, `/host-b/docs`)
 - Optional Tailscale integration for TLS without certificates or port forwarding
+- ACL engine with per-identity, per-repo-path access control (Tailscale tags, users, hostnames, IPs)
 - Append-only mode (deletes blocked except for lock removal)
 - Structured JSON logging with per-request IDs (zap)
 - Configuration via CLI flags, config file, or environment variables
@@ -277,9 +278,23 @@ restic.example.com {
 
 So far only **Hetzner Object Storage** has been tested. AWS S3 and MinIO should work but have not been verified yet. If you successfully use another provider, please open an issue or PR to help expand this list.
 
-### Does it support authentication?
+### Does it support authentication / access control?
 
-Not currently. The intended primary deployment is via Tailscale, which provides identity and access control at the network level. If you run in plain mode, anyone who can reach the server can access all repositories. Use a reverse proxy with authentication or restrict network access accordingly. Path-based ACLs tied to Tailscale identities are planned as a future feature.
+Yes. The built-in ACL engine provides fine-grained access control per identity and repository path. In Tailscale mode, identities are resolved via the WhoIs API — giving you access to Tailscale tags (`tag:backup`), user logins (`alice@example.com`), hostnames, and IPs. In plain mode, identities are resolved via rDNS.
+
+```yaml
+acl:
+  default_role: deny
+  rules:
+    - paths: ["/"]
+      identities: ["tag:backup"]
+      permission: full-access
+    - paths: ["/alice"]
+      identities: ["alice@example.com"]
+      permission: full-access
+```
+
+See [docs/acl.md](docs/acl.md) for full documentation including cascading rules, permissions, trusted proxies, and examples.
 
 ### Can I host multiple repositories on one server?
 

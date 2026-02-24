@@ -38,9 +38,13 @@ See `docs/docker.md` for Compose setup.
 - `internal/api/list.go` — GET /:type/ (v1: string[], v2: {name,size}[])
 - `internal/api/version.go` — API version negotiation (Accept header)
 - `internal/middleware/requestid.go` — UUID per request, X-Request-ID header
-- `internal/middleware/logger.go` — Zap structured request logging
+- `internal/middleware/logger.go` — Zap structured request logging, identity field
 - `internal/middleware/recover.go` — Panic recovery
 - `internal/middleware/repoprefix.go` — Extracts repo path prefix, rewrites URL for routing
+- `internal/middleware/identity.go` — WhoIs (Tailscale) and rDNS (plain) identity resolution, cache
+- `internal/middleware/acl.go` — ACL middleware: enforces permissions, JSON error response
+- `internal/acl/acl.go` — ACL engine: rule evaluation, path/identity matching, cascading
+- `internal/acl/acl_test.go` — Unit tests for ACL engine
 - `internal/storage/backend.go` — Backend interface
 - `internal/storage/types.go` — BlobType, Blob struct, sentinel errors
 - `internal/storage/memory/` — In-memory backend (configurable cap, sync.RWMutex)
@@ -49,7 +53,7 @@ See `docs/docker.md` for Compose setup.
 - `internal/storage/webdav/` — WebDAV backend (gowebdav, Nextcloud/ownCloud/HiDrive/Box)
 - `internal/storage/rclone/` — Rclone backend (HTTP client proxying to restic REST server)
 - `tests/integration/` — Integration tests (full restic lifecycle per backend)
-- `docs/` — Documentation (Docker setup, testing)
+- `docs/` — Documentation (Docker setup, testing, ACL)
 - `.github/workflows/docker.yml` — Docker build + push (multi-arch, ghcr.io)
 - `.github/workflows/test.yml` — CI: unit tests + integration test matrix
 
@@ -68,8 +72,10 @@ See `config.example.yaml` for all options.
 - **S3**: supports custom endpoints (MinIO, Hetzner, etc.), static or chain credentials
 - **WebDAV**: gowebdav client, flat structure per type (no data/00-ff sharding), Basic Auth
 - **Rclone**: HTTP client proxying to `rclone serve restic` or any restic REST server
-- **Tailscale**: tsnet ListenTLS on :443, state_dir for persistent keys
-- **No auth in v1**: Tailscale provides identity; ACLs are a future feature
+- **Tailscale**: tsnet ListenTLS on :443, state_dir for persistent keys, WhoIs identity resolution
+- **ACL engine**: per-identity + per-repo-path access control with cascading rules (deepest path wins)
+- **Identity resolution**: Tailscale WhoIs (tags, user, hostname, IP) or rDNS (plain mode)
+- **ACL denial**: JSON error response with requester identity; request_id for log correlation
 
 ## Testing
 
