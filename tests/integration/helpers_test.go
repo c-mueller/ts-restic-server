@@ -20,7 +20,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const testPassword = "integration-test-password"
+const testPassword = "integration-test-password" // pragma: allowlist secret
 const testSeed int64 = 42
 
 // requireRestic skips the test if the restic binary is not available.

@@ -16,10 +16,10 @@ type repo struct {
 }
 
 type Backend struct {
-	mu       sync.RWMutex
-	maxBytes int64
+	mu        sync.RWMutex
+	maxBytes  int64
 	usedBytes int64
-	repos    map[string]*repo // keyed by repo prefix
+	repos     map[string]*repo // keyed by repo prefix
 }
 
 func New(maxBytes int64) *Backend {

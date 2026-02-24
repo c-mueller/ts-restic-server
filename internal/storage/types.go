@@ -26,9 +26,9 @@ type Blob struct {
 }
 
 var (
-	ErrNotFound       = errors.New("not found")
-	ErrAlreadyExists  = errors.New("already exists")
-	ErrQuotaExceeded  = errors.New("quota exceeded")
-	ErrRepoNotFound   = errors.New("repository not found")
-	ErrRepoExists     = errors.New("repository already exists")
+	ErrNotFound      = errors.New("not found")
+	ErrAlreadyExists = errors.New("already exists")
+	ErrQuotaExceeded = errors.New("quota exceeded")
+	ErrRepoNotFound  = errors.New("repository not found")
+	ErrRepoExists    = errors.New("repository already exists")
 )

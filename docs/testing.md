@@ -45,12 +45,14 @@ Die Integrationstests prüfen den vollständigen Restic-Lifecycle gegen jedes St
 ### Testdaten
 
 **Dataset A (Mixed-Size, ~100 MB):**
+
 - 50 × 1 MB Dateien
 - 100 × 100 KB Dateien
 - 200 × 10 KB Dateien
 - 10 × 512 KB Delta-Dateien (für Snapshot 2)
 
 **Dataset B (Single Large File, 100 MB):**
+
 - 1 × 100 MB Datei (Edge Case für Pack-Handling)
 
 Alle Daten sind schlecht komprimierbar (Zufallsdaten) und deterministisch (fester Seed).

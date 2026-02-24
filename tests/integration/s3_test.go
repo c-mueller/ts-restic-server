@@ -21,8 +21,8 @@ func TestS3Backend(t *testing.T) {
 	ctx := context.Background()
 
 	const (
-		accessKey = "minioadmin"
-		secretKey = "minioadmin"
+		accessKey = "minioadmin" // pragma: allowlist secret
+		secretKey = "minioadmin" // pragma: allowlist secret
 		bucket    = "test-bucket"
 		region    = "us-east-1"
 	)

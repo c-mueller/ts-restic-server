@@ -10,7 +10,7 @@ docker build -t ts-restic-server .
 
 Lege ein Verzeichnis an, z.B. `ts-restic-server/`, mit folgender Struktur:
 
-```
+```text
 ts-restic-server/
 ├── compose.yaml
 └── config.yaml

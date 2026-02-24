@@ -260,7 +260,8 @@ restic -r rest:http://localhost:8880/host-b/daily init
 Yes. Set `listen_mode: plain` (the default) and the server listens on a regular TCP port. However, plain mode serves unencrypted HTTP. For production use without Tailscale, you should place the server behind a reverse proxy (e.g. nginx, Caddy, Traefik) that handles TLS termination. The server itself does not support standalone TLS certificates — it's either Tailscale-managed TLS or plain HTTP.
 
 Example with Caddy:
-```
+
+```text
 restic.example.com {
     reverse_proxy localhost:8880
 }

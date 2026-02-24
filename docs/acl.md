@@ -370,7 +370,7 @@ On access denials, the ACL middleware logs an `acl denied` warning with `request
 
 The request pipeline looks like this:
 
-```
+```text
 Request → RepoPrefix → Recover → RequestID → Logger → Identity → ACL → Handler
 ```
 
