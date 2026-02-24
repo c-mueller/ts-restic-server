@@ -129,11 +129,11 @@ Falls `LocalClient()` fehlschlägt, wird automatisch auf rDNS via MagicDNS zurü
 
 ### Graceful Degradation
 
-Schlägt ein rDNS-Lookup fehl (Timeout, NXDOMAIN, kein PTR-Record), wird nur die IP als Identity verwendet. Der Server lehnt den Request nicht ab — die ACL-Regeln werden mit der IP als einziger Identity ausgewertet.
+Schlägt ein WhoIs- oder rDNS-Lookup fehl (Timeout, NXDOMAIN, kein PTR-Record), wird nur die IP als Identity verwendet. Der Server lehnt den Request nicht ab — die ACL-Regeln werden mit der IP als einziger Identity ausgewertet.
 
 ### Cache
 
-rDNS-Ergebnisse werden gecached um wiederholte Lookups pro Request zu vermeiden:
+Identity-Ergebnisse (WhoIs und rDNS) werden gecached um wiederholte Lookups pro Request zu vermeiden:
 
 - **Default-TTL:** 600 Sekunden (10 Minuten)
 - **Negative Ergebnisse** (kein PTR-Record, Fehler) werden ebenfalls gecached
@@ -161,7 +161,7 @@ acl:
 | Option | Typ | Default | Beschreibung |
 |---|---|---|---|
 | `default_role` | string | (pflicht) | `deny`, `read-only`, `append-only` oder `full-access` |
-| `dns_server` | string | `""` | Custom DNS-Server im Format `host:port`. Leer = System-DNS. Im Tailscale-Modus wird automatisch `100.100.100.100:53` verwendet. |
+| `dns_server` | string | `""` | Custom DNS-Server im Format `host:port`. Leer = System-DNS. Im Tailscale-Modus wird WhoIs verwendet (Fallback: MagicDNS `100.100.100.100:53`). |
 | `rdns_cache_ttl` | int | `600` | TTL für rDNS-Cache in Sekunden |
 | `trusted_proxies` | []string | `[]` | CIDR-Notationen vertrauenswürdiger Proxies für `X-Forwarded-For` |
 | `rules` | []Rule | `[]` | Liste von ACL-Regeln |
@@ -325,6 +325,47 @@ acl:
 
 > **Hinweis:** Für globalen Append-Only-Modus ohne Identity-basierte Differenzierung kann alternativ `append_only: true` auf Top-Level gesetzt werden. Die ACL bietet feinere Kontrolle pro Identity und Pfad.
 
+## Fehlermeldung bei Zugriffsverweigerung
+
+Wird ein Request durch die ACL abgelehnt, antwortet der Server mit `403 Forbidden` und einem JSON-Body, der die Identity des Requesters enthält. So kann der Client nachvollziehen, warum der Zugriff verweigert wurde.
+
+**Tailscale-Modus** (mit WhoIs-Auflösung):
+
+```json
+{
+  "error": "access denied",
+  "path": "/server-a",
+  "operation": "write",
+  "ip": "100.64.0.1",
+  "hostname": "server.zuul-vibes.ts.net",
+  "user": "alice@example.com",
+  "tags": ["tag:backup"]
+}
+```
+
+**Plain-Modus** (nur IP):
+
+```json
+{
+  "error": "access denied",
+  "path": "/server-a",
+  "operation": "write",
+  "ip": "10.0.0.5"
+}
+```
+
+Felder wie `hostname`, `user` und `tags` erscheinen nur, wenn sie durch die WhoIs-Auflösung verfügbar sind.
+
+## Logging
+
+### Access-Log
+
+Der HTTP Access-Log enthält ein `identities`-Feld, sofern die Identity-Auflösung mehr als nur die IP ergeben hat (z.B. Hostname, Tags, User). Bei reiner IP wird das Feld weggelassen.
+
+### ACL-Denied-Log
+
+Bei Zugriffsverweigerungen loggt die ACL-Middleware eine `acl denied`-Warnung mit `request_id`, `identities`, `repo_path`, `operation`, `method` und `path`. Die `request_id` ermöglicht die Korrelation mit dem Access-Log.
+
 ## Middleware-Reihenfolge
 
 Die Request-Pipeline sieht so aus:
@@ -346,6 +387,9 @@ Request → RepoPrefix → Recover → RequestID → Logger → Identity → ACL
 | `internal/config/config.go` | `ACLConfig`-Struct, Validation |
 | `internal/acl/acl.go` | ACL-Engine: Regelauswertung, Pfad- und Identity-Matching |
 | `internal/acl/acl_test.go` | Unit-Tests für die ACL-Engine |
-| `internal/middleware/identity.go` | rDNS-Resolver, Cache, Identity-Middleware |
-| `internal/middleware/acl.go` | ACL-Middleware: liest Identities, erzwingt Permissions |
-| `cmd/serve.go` | Wiring: `buildACLEngine`, `buildIPExtractor`, `buildIdentityMiddleware` |
+| `internal/middleware/identity.go` | WhoIs- und rDNS-Resolver, Cache, Identity-Middleware |
+| `internal/middleware/acl.go` | ACL-Middleware: liest Identities, erzwingt Permissions, JSON-Fehlermeldung |
+| `internal/middleware/logger.go` | HTTP Access-Log mit Identity-Feld |
+| `internal/server/server.go` | Server-Struct mit optionalem `*tsnet.Server` |
+| `internal/server/listener.go` | Akzeptiert externen `*tsnet.Server` |
+| `cmd/serve.go` | Wiring: tsnet-Erstellung, WhoIs-Adapter, `buildACLEngine`, `buildIPExtractor`, `buildIdentityMiddleware` |
