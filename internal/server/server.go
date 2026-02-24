@@ -19,7 +19,7 @@ type Server struct {
 	echo    *echo.Echo
 }
 
-func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEngine *acl.Engine, ipExtractor echo.IPExtractor) *Server {
+func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEngine *acl.Engine, ipExtractor echo.IPExtractor, identityMW echo.MiddlewareFunc) *Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
@@ -28,7 +28,7 @@ func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEng
 		e.IPExtractor = ipExtractor
 	}
 
-	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine)
+	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine, identityMW)
 
 	return &Server{
 		cfg:     cfg,

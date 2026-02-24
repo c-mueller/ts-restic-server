@@ -21,6 +21,8 @@ type Config struct {
 type ACLConfig struct {
 	DefaultRole    string    `mapstructure:"default_role"`
 	TrustedProxies []string  `mapstructure:"trusted_proxies"`
+	DNSServer      string    `mapstructure:"dns_server"`
+	RDNSCacheTTL   int       `mapstructure:"rdns_cache_ttl"`
 	Rules          []ACLRule `mapstructure:"rules"`
 }
 
@@ -91,7 +93,7 @@ func Load() (*Config, error) {
 
 	// Viper may set ACL to a zero-value struct instead of nil when
 	// no acl: block is present. Normalize to nil if effectively empty.
-	if cfg.ACL != nil && cfg.ACL.DefaultRole == "" && len(cfg.ACL.Rules) == 0 && len(cfg.ACL.TrustedProxies) == 0 {
+	if cfg.ACL != nil && cfg.ACL.DefaultRole == "" && len(cfg.ACL.Rules) == 0 && len(cfg.ACL.TrustedProxies) == 0 && cfg.ACL.DNSServer == "" && cfg.ACL.RDNSCacheTTL == 0 {
 		cfg.ACL = nil
 	}
 
@@ -182,6 +184,11 @@ func (a *ACLConfig) Validate() error {
 	for i, cidr := range a.TrustedProxies {
 		if _, _, err := net.ParseCIDR(cidr); err != nil {
 			return fmt.Errorf("acl.trusted_proxies[%d] %q is not a valid CIDR: %w", i, cidr, err)
+		}
+	}
+	if a.DNSServer != "" {
+		if _, _, err := net.SplitHostPort(a.DNSServer); err != nil {
+			return fmt.Errorf("acl.dns_server %q must be in host:port format: %w", a.DNSServer, err)
 		}
 	}
 	for i, r := range a.Rules {

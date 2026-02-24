@@ -6,9 +6,11 @@ import (
 	"net"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/c-mueller/ts-restic-server/internal/acl"
 	"github.com/c-mueller/ts-restic-server/internal/config"
+	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/server"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/c-mueller/ts-restic-server/internal/storage/filesystem"
@@ -73,7 +75,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	srv := server.New(cfg, backend, logger, aclEngine, ipExtractor)
+	identityMW := buildIdentityMiddleware(cfg, logger)
+
+	srv := server.New(cfg, backend, logger, aclEngine, ipExtractor, identityMW)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -155,6 +159,29 @@ func buildIPExtractor(cfg *config.Config) (echo.IPExtractor, error) {
 		opts = append(opts, echo.TrustIPRange(ipNet))
 	}
 	return echo.ExtractIPFromXFFHeader(opts...), nil
+}
+
+func buildIdentityMiddleware(cfg *config.Config, logger *zap.Logger) echo.MiddlewareFunc {
+	if cfg.ACL == nil {
+		return middleware.PlainIdentity()
+	}
+
+	ttl := 600 * time.Second
+	if cfg.ACL.RDNSCacheTTL > 0 {
+		ttl = time.Duration(cfg.ACL.RDNSCacheTTL) * time.Second
+	}
+
+	var dnsServer string
+	includeShort := false
+
+	if cfg.ListenMode == "tailscale" {
+		dnsServer = "100.100.100.100:53"
+		includeShort = true
+	} else if cfg.ACL.DNSServer != "" {
+		dnsServer = cfg.ACL.DNSServer
+	}
+
+	return middleware.RDNSIdentity(dnsServer, ttl, includeShort, logger)
 }
 
 func buildBackend(cfg *config.Config) (storage.Backend, error) {

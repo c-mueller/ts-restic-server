@@ -86,22 +86,23 @@ func New(defaultPerm Permission, rules []Rule) (*Engine, error) {
 	return &Engine{defaultPerm: defaultPerm, rules: rules}, nil
 }
 
-// Resolve returns the effective permission for the given identity and repo path.
+// Resolve returns the effective permission for the given identities and repo path.
+// identities is typically [IP, FQDN, shortHostname] as resolved by the identity middleware.
 //
 // Cascade logic:
-//  1. Collect all rules matching both identity and path (segment-boundary prefix match).
+//  1. Collect all rules matching any identity and path (segment-boundary prefix match).
 //  2. Group by matched path depth (number of segments). Deepest match wins.
 //  3. At the deepest level: if any rule is Deny, result is Deny.
 //     Otherwise, the highest permission wins.
 //  4. No match → default permission.
-func (e *Engine) Resolve(identity, repoPath string) Permission {
+func (e *Engine) Resolve(identities []string, repoPath string) Permission {
 	repoPath = normalizePath(repoPath)
 
 	bestDepth := -1
 	var permsAtBest []Permission
 
 	for _, rule := range e.rules {
-		if !matchIdentity(rule.Identities, identity) {
+		if !matchIdentity(rule.Identities, identities) {
 			continue
 		}
 		for _, rulePath := range rule.Paths {
@@ -139,9 +140,9 @@ func (e *Engine) Resolve(identity, repoPath string) Permission {
 	return highest
 }
 
-// Allowed checks whether the given operation is permitted for the identity and path.
-func (e *Engine) Allowed(identity, repoPath string, op OperationType) bool {
-	perm := e.Resolve(identity, repoPath)
+// Allowed checks whether the given operation is permitted for the identities and path.
+func (e *Engine) Allowed(identities []string, repoPath string, op OperationType) bool {
+	perm := e.Resolve(identities, repoPath)
 	switch op {
 	case OpRead:
 		return perm >= ReadOnly
@@ -190,12 +191,17 @@ func matchPath(rulePath, reqPath string) (int, bool) {
 	return 0, false
 }
 
-// matchIdentity checks if any of the rule's identities match the request identity.
+// matchIdentity checks if any of the rule's identities match any of the request identities.
 // "*" matches any identity.
-func matchIdentity(ruleIdentities []string, identity string) bool {
+func matchIdentity(ruleIdentities []string, requestIdentities []string) bool {
 	for _, ri := range ruleIdentities {
-		if ri == "*" || ri == identity {
+		if ri == "*" {
 			return true
+		}
+		for _, id := range requestIdentities {
+			if ri == id {
+				return true
+			}
 		}
 	}
 	return false

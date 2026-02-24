@@ -34,16 +34,24 @@ storage:
 # Omit this section entirely to disable ACL (all requests are allowed).
 # acl:
 #   default_role: read-only       # deny, read-only, append-only, full-access
+#   dns_server: ""                # custom DNS for rDNS lookups (plain mode; Tailscale uses 100.100.100.100 automatically)
+#   rdns_cache_ttl: 600           # rDNS cache TTL in seconds (default: 600)
 #   trusted_proxies:              # CIDRs of trusted reverse proxies for X-Forwarded-For
 #     - 10.0.0.0/8               # if omitted, Echo defaults are used (loopback + link-local + private nets)
 #     - 172.16.0.0/12
 #   rules:
 #     - paths: ["/server-a"]
-#       identities: ["100.64.0.1"]
-#       permission: full-access   # this host gets full access to /server-a
-#     - paths: ["/server-b", "/server-c"]
-#       identities: ["*"]         # "*" matches any identity
+#       identities: ["server-a"]              # short hostname (Tailscale only)
+#       permission: full-access
+#     - paths: ["/team-backup"]
+#       identities: ["server.zuul-vibes.ts.net"]  # FQDN (Tailscale)
+#       permission: full-access
+#     - paths: ["/office"]
+#       identities: ["nas.home.arpa"]          # rDNS hostname (plain mode)
 #       permission: append-only
+#     - paths: ["/server-b"]
+#       identities: ["100.64.0.5"]             # IP (both modes)
+#       permission: full-access
 #     - paths: ["/private"]
 #       identities: ["*"]
 #       permission: deny          # deny overrides any other rule at the same path depth

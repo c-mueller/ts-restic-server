@@ -8,7 +8,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, appendOnly bool, aclEngine *acl.Engine) {
+func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, appendOnly bool, aclEngine *acl.Engine, identityMW echo.MiddlewareFunc) {
 	h := &Handler{
 		Backend:    backend,
 		Logger:     logger,
@@ -21,6 +21,9 @@ func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, a
 	e.Use(middleware.Recover(logger))
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Logger(logger))
+	if identityMW != nil {
+		e.Use(identityMW)
+	}
 	e.Use(middleware.ACL(aclEngine, logger))
 
 	// Repo management

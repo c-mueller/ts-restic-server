@@ -17,14 +17,17 @@ func ACL(engine *acl.Engine, logger *zap.Logger) echo.MiddlewareFunc {
 			return next
 		}
 		return func(c echo.Context) error {
-			identity := c.RealIP()
+			identities := GetIdentity(c.Request().Context())
+			if identities == nil {
+				identities = []string{c.RealIP()}
+			}
 			repoPrefix := GetRepoPrefix(c.Request().Context())
 			repoPath := "/" + repoPrefix
 			op := classifyOperation(c.Request().Method, c.Request().URL.Path)
 
-			if !engine.Allowed(identity, repoPath, op) {
+			if !engine.Allowed(identities, repoPath, op) {
 				logger.Warn("acl denied",
-					zap.String("identity", identity),
+					zap.Strings("identities", identities),
 					zap.String("repo_path", repoPath),
 					zap.String("operation", opName(op)),
 					zap.String("method", c.Request().Method),

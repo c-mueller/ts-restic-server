@@ -10,7 +10,7 @@ func TestDefaultFullAccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/repo"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/repo"); got != FullAccess {
 		t.Errorf("got %v, want full-access", got)
 	}
 }
@@ -20,7 +20,7 @@ func TestDefaultDeny(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/repo"); got != Deny {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/repo"); got != Deny {
 		t.Errorf("got %v, want deny", got)
 	}
 }
@@ -30,7 +30,7 @@ func TestDefaultReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/repo"); got != ReadOnly {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/repo"); got != ReadOnly {
 		t.Errorf("got %v, want read-only", got)
 	}
 }
@@ -40,7 +40,7 @@ func TestDefaultAppendOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/repo"); got != AppendOnly {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/repo"); got != AppendOnly {
 		t.Errorf("got %v, want append-only", got)
 	}
 }
@@ -52,7 +52,7 @@ func TestExactPathMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/server-a"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/server-a"); got != FullAccess {
 		t.Errorf("exact match: got %v, want full-access", got)
 	}
 }
@@ -64,7 +64,7 @@ func TestSubPathMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/server-a/sub"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/server-a/sub"); got != FullAccess {
 		t.Errorf("sub-path: got %v, want full-access", got)
 	}
 }
@@ -76,7 +76,7 @@ func TestNoMatchFallsToDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/other"); got != ReadOnly {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/other"); got != ReadOnly {
 		t.Errorf("no match: got %v, want read-only (default)", got)
 	}
 }
@@ -89,7 +89,7 @@ func TestSegmentBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	// /server-ab should NOT match /server-a (segment boundary)
-	if got := e.Resolve("10.0.0.1", "/server-ab"); got != Deny {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/server-ab"); got != Deny {
 		t.Errorf("segment boundary: got %v, want deny", got)
 	}
 }
@@ -101,7 +101,7 @@ func TestWildcardIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("any-host", "/repo"); got != ReadOnly {
+	if got := e.Resolve([]string{"any-host"}, "/repo"); got != ReadOnly {
 		t.Errorf("wildcard identity: got %v, want read-only", got)
 	}
 }
@@ -113,10 +113,10 @@ func TestSpecificIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.5", "/repo"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.5"}, "/repo"); got != FullAccess {
 		t.Errorf("matching identity: got %v, want full-access", got)
 	}
-	if got := e.Resolve("10.0.0.6", "/repo"); got != Deny {
+	if got := e.Resolve([]string{"10.0.0.6"}, "/repo"); got != Deny {
 		t.Errorf("non-matching identity: got %v, want deny", got)
 	}
 }
@@ -129,10 +129,10 @@ func TestDeeperPathOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/server-a"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/server-a"); got != FullAccess {
 		t.Errorf("deeper path: got %v, want full-access", got)
 	}
-	if got := e.Resolve("10.0.0.1", "/other"); got != ReadOnly {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/other"); got != ReadOnly {
 		t.Errorf("shallow path: got %v, want read-only", got)
 	}
 }
@@ -145,7 +145,7 @@ func TestDenyIsAbsolute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/secret"); got != Deny {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/secret"); got != Deny {
 		t.Errorf("deny absolute: got %v, want deny", got)
 	}
 }
@@ -158,7 +158,7 @@ func TestHighestPermissionWins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/repo"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/repo"); got != FullAccess {
 		t.Errorf("highest perm: got %v, want full-access", got)
 	}
 }
@@ -170,13 +170,13 @@ func TestAppendOnlyLockSemantics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !e.Allowed("10.0.0.1", "/repo", OpRead) {
+	if !e.Allowed([]string{"10.0.0.1"}, "/repo", OpRead) {
 		t.Error("append-only should allow read")
 	}
-	if !e.Allowed("10.0.0.1", "/repo", OpWrite) {
+	if !e.Allowed([]string{"10.0.0.1"}, "/repo", OpWrite) {
 		t.Error("append-only should allow write")
 	}
-	if e.Allowed("10.0.0.1", "/repo", OpDelete) {
+	if e.Allowed([]string{"10.0.0.1"}, "/repo", OpDelete) {
 		t.Error("append-only should deny delete")
 	}
 }
@@ -188,13 +188,13 @@ func TestReadOnlyBlocksWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !e.Allowed("10.0.0.1", "/repo", OpRead) {
+	if !e.Allowed([]string{"10.0.0.1"}, "/repo", OpRead) {
 		t.Error("read-only should allow read")
 	}
-	if e.Allowed("10.0.0.1", "/repo", OpWrite) {
+	if e.Allowed([]string{"10.0.0.1"}, "/repo", OpWrite) {
 		t.Error("read-only should deny write")
 	}
-	if e.Allowed("10.0.0.1", "/repo", OpDelete) {
+	if e.Allowed([]string{"10.0.0.1"}, "/repo", OpDelete) {
 		t.Error("read-only should deny delete")
 	}
 }
@@ -206,13 +206,13 @@ func TestDenyBlocksAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e.Allowed("10.0.0.1", "/repo", OpRead) {
+	if e.Allowed([]string{"10.0.0.1"}, "/repo", OpRead) {
 		t.Error("deny should block read")
 	}
-	if e.Allowed("10.0.0.1", "/repo", OpWrite) {
+	if e.Allowed([]string{"10.0.0.1"}, "/repo", OpWrite) {
 		t.Error("deny should block write")
 	}
-	if e.Allowed("10.0.0.1", "/repo", OpDelete) {
+	if e.Allowed([]string{"10.0.0.1"}, "/repo", OpDelete) {
 		t.Error("deny should block delete")
 	}
 }
@@ -224,7 +224,7 @@ func TestEmptyRepoPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", ""); got != ReadOnly {
+	if got := e.Resolve([]string{"10.0.0.1"}, ""); got != ReadOnly {
 		t.Errorf("empty path: got %v, want read-only", got)
 	}
 }
@@ -236,10 +236,10 @@ func TestMultiplePathsPerRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/repo-a"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/repo-a"); got != FullAccess {
 		t.Errorf("repo-a: got %v, want full-access", got)
 	}
-	if got := e.Resolve("10.0.0.1", "/repo-b"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/repo-b"); got != FullAccess {
 		t.Errorf("repo-b: got %v, want full-access", got)
 	}
 }
@@ -251,13 +251,13 @@ func TestMultipleIdentitiesPerRule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/repo"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/repo"); got != FullAccess {
 		t.Errorf("identity 1: got %v, want full-access", got)
 	}
-	if got := e.Resolve("10.0.0.2", "/repo"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.2"}, "/repo"); got != FullAccess {
 		t.Errorf("identity 2: got %v, want full-access", got)
 	}
-	if got := e.Resolve("10.0.0.3", "/repo"); got != Deny {
+	if got := e.Resolve([]string{"10.0.0.3"}, "/repo"); got != Deny {
 		t.Errorf("identity 3: got %v, want deny", got)
 	}
 }
@@ -319,7 +319,7 @@ func TestPathNormalization(t *testing.T) {
 		t.Fatal(err)
 	}
 	// RepoPrefix provides paths without leading /
-	if got := e.Resolve("10.0.0.1", "server-a"); got != FullAccess {
+	if got := e.Resolve([]string{"10.0.0.1"}, "server-a"); got != FullAccess {
 		t.Errorf("normalized path: got %v, want full-access", got)
 	}
 }
@@ -331,7 +331,7 @@ func TestRootRuleMatchesAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := e.Resolve("10.0.0.1", "/anything/deep/path"); got != ReadOnly {
+	if got := e.Resolve([]string{"10.0.0.1"}, "/anything/deep/path"); got != ReadOnly {
 		t.Errorf("root rule: got %v, want read-only", got)
 	}
 }
@@ -343,13 +343,13 @@ func TestFullAccessAllowsAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !e.Allowed("10.0.0.1", "/repo", OpRead) {
+	if !e.Allowed([]string{"10.0.0.1"}, "/repo", OpRead) {
 		t.Error("full-access should allow read")
 	}
-	if !e.Allowed("10.0.0.1", "/repo", OpWrite) {
+	if !e.Allowed([]string{"10.0.0.1"}, "/repo", OpWrite) {
 		t.Error("full-access should allow write")
 	}
-	if !e.Allowed("10.0.0.1", "/repo", OpDelete) {
+	if !e.Allowed([]string{"10.0.0.1"}, "/repo", OpDelete) {
 		t.Error("full-access should allow delete")
 	}
 }
@@ -372,6 +372,24 @@ func TestPermissionString(t *testing.T) {
 	}
 }
 
+func TestMultiIdentityResolution(t *testing.T) {
+	e, err := New(Deny, []Rule{
+		{Paths: []string{"/server-a"}, Identities: []string{"server"}, Permission: FullAccess},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Request carries IP + FQDN + short hostname; rule matches on short hostname
+	ids := []string{"100.64.0.1", "server.zuul.ts.net", "server"}
+	if got := e.Resolve(ids, "/server-a"); got != FullAccess {
+		t.Errorf("multi-identity match: got %v, want full-access", got)
+	}
+	// IP-only should not match
+	if got := e.Resolve([]string{"100.64.0.1"}, "/server-a"); got != Deny {
+		t.Errorf("ip-only should not match: got %v, want deny", got)
+	}
+}
+
 func BenchmarkResolve(b *testing.B) {
 	rules := make([]Rule, 30)
 	for i := range rules {
@@ -388,6 +406,6 @@ func BenchmarkResolve(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		e.Resolve("10.0.0.15", "/host-15/backup")
+		e.Resolve([]string{"10.0.0.15"}, "/host-15/backup")
 	}
 }
