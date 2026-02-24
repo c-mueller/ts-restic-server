@@ -142,6 +142,71 @@ func buildIdentifiers(ip string, hostnames []string, includeShort bool) []string
 	return ids
 }
 
+// WhoIsResult contains resolved identity info from a Tailscale WhoIs lookup.
+type WhoIsResult struct {
+	FQDN      string   // e.g. "server.tailnet.ts.net"
+	ShortName string   // e.g. "server"
+	Tags      []string // e.g. ["tag:server", "tag:backup"]
+	LoginName string   // e.g. "alice@example.com"
+}
+
+// WhoIsFunc resolves a remote address (ip:port) to identity info.
+type WhoIsFunc func(ctx context.Context, remoteAddr string) (*WhoIsResult, error)
+
+// WhoIsIdentity returns middleware that resolves client identities via Tailscale WhoIs.
+// This provides richer identity info than rDNS: tags, user login, hostname.
+func WhoIsIdentity(whoIs WhoIsFunc, cacheTTL time.Duration, logger *zap.Logger) echo.MiddlewareFunc {
+	cache := newRDNSCache(cacheTTL)
+
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			ip := c.RealIP()
+
+			// Check cache
+			if ids, ok := cache.Get(ip); ok {
+				setIdentity(c, ids)
+				return next(c)
+			}
+
+			// WhoIs lookup with timeout
+			ctx, cancel := context.WithTimeout(c.Request().Context(), 5*time.Second)
+			result, err := whoIs(ctx, c.Request().RemoteAddr)
+			cancel()
+
+			if err != nil {
+				logger.Debug("whois lookup failed", zap.String("ip", ip), zap.Error(err))
+				// Negative cache — avoid repeated lookups
+				cache.Set(ip, []string{ip})
+				setIdentity(c, []string{ip})
+				return next(c)
+			}
+
+			ids := buildWhoIsIdentifiers(ip, result)
+			cache.Set(ip, ids)
+			logger.Debug("whois resolved", zap.String("ip", ip), zap.Strings("identities", ids))
+			setIdentity(c, ids)
+			return next(c)
+		}
+	}
+}
+
+// buildWhoIsIdentifiers constructs the identity list from a WhoIs result:
+// [ip, fqdn, shortName, loginName, tags...].
+func buildWhoIsIdentifiers(ip string, result *WhoIsResult) []string {
+	ids := []string{ip}
+	if result.FQDN != "" {
+		ids = append(ids, result.FQDN)
+	}
+	if result.ShortName != "" {
+		ids = append(ids, result.ShortName)
+	}
+	if result.LoginName != "" {
+		ids = append(ids, result.LoginName)
+	}
+	ids = append(ids, result.Tags...)
+	return ids
+}
+
 // PlainIdentity returns middleware that sets identity to just the client IP.
 // Used when no ACL is configured.
 func PlainIdentity() echo.MiddlewareFunc {

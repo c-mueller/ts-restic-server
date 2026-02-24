@@ -52,6 +52,12 @@ storage:
 #     - paths: ["/server-b"]
 #       identities: ["100.64.0.5"]             # IP (both modes)
 #       permission: full-access
+#     - paths: ["/tagged-servers"]
+#       identities: ["tag:server"]               # Tailscale tag (requires WhoIs)
+#       permission: full-access
+#     - paths: ["/alice-backup"]
+#       identities: ["alice@example.com"]         # Tailscale user login (requires WhoIs)
+#       permission: full-access
 #     - paths: ["/private"]
 #       identities: ["*"]
 #       permission: deny          # deny overrides any other rule at the same path depth
