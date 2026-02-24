@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -14,6 +15,19 @@ type Config struct {
 	LogLevel   string     `mapstructure:"log_level"`
 	Tailscale  Tailscale  `mapstructure:"tailscale"`
 	Storage    Storage    `mapstructure:"storage"`
+	ACL        *ACLConfig `mapstructure:"acl"`
+}
+
+type ACLConfig struct {
+	DefaultRole    string    `mapstructure:"default_role"`
+	TrustedProxies []string  `mapstructure:"trusted_proxies"`
+	Rules          []ACLRule `mapstructure:"rules"`
+}
+
+type ACLRule struct {
+	Paths      []string `mapstructure:"paths"`
+	Identities []string `mapstructure:"identities"`
+	Permission string   `mapstructure:"permission"`
 }
 
 type Tailscale struct {
@@ -73,6 +87,12 @@ func Load() (*Config, error) {
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("unmarshalling config: %w", err)
+	}
+
+	// Viper may set ACL to a zero-value struct instead of nil when
+	// no acl: block is present. Normalize to nil if effectively empty.
+	if cfg.ACL != nil && cfg.ACL.DefaultRole == "" && len(cfg.ACL.Rules) == 0 && len(cfg.ACL.TrustedProxies) == 0 {
+		cfg.ACL = nil
 	}
 
 	if err := cfg.Validate(); err != nil {
@@ -142,5 +162,38 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if c.ACL != nil {
+		if err := c.ACL.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+var validPermissions = map[string]bool{
+	"deny": true, "read-only": true, "append-only": true, "full-access": true,
+}
+
+func (a *ACLConfig) Validate() error {
+	if !validPermissions[a.DefaultRole] {
+		return fmt.Errorf("acl.default_role %q must be deny, read-only, append-only, or full-access", a.DefaultRole)
+	}
+	for i, cidr := range a.TrustedProxies {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("acl.trusted_proxies[%d] %q is not a valid CIDR: %w", i, cidr, err)
+		}
+	}
+	for i, r := range a.Rules {
+		if len(r.Paths) == 0 {
+			return fmt.Errorf("acl.rules[%d].paths must not be empty", i)
+		}
+		if len(r.Identities) == 0 {
+			return fmt.Errorf("acl.rules[%d].identities must not be empty", i)
+		}
+		if !validPermissions[r.Permission] {
+			return fmt.Errorf("acl.rules[%d].permission %q must be deny, read-only, append-only, or full-access", i, r.Permission)
+		}
+	}
 	return nil
 }

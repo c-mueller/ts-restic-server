@@ -1,13 +1,14 @@
 package api
 
 import (
+	"github.com/c-mueller/ts-restic-server/internal/acl"
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 
-func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, appendOnly bool) {
+func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, appendOnly bool, aclEngine *acl.Engine) {
 	h := &Handler{
 		Backend:    backend,
 		Logger:     logger,
@@ -20,6 +21,7 @@ func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, a
 	e.Use(middleware.Recover(logger))
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Logger(logger))
+	e.Use(middleware.ACL(aclEngine, logger))
 
 	// Repo management
 	e.POST("/", h.CreateRepo)

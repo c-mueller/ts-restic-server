@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 
+	"github.com/c-mueller/ts-restic-server/internal/acl"
 	"github.com/c-mueller/ts-restic-server/internal/api"
 	"github.com/c-mueller/ts-restic-server/internal/config"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
@@ -18,12 +19,16 @@ type Server struct {
 	echo    *echo.Echo
 }
 
-func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger) *Server {
+func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEngine *acl.Engine, ipExtractor echo.IPExtractor) *Server {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
 
-	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly)
+	if ipExtractor != nil {
+		e.IPExtractor = ipExtractor
+	}
+
+	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine)
 
 	return &Server{
 		cfg:     cfg,

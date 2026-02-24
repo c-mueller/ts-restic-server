@@ -29,3 +29,21 @@ storage:
     endpoint: ""          # rclone serve restic URL (e.g. http://localhost:8080)
     username: ""          # optional basic auth username
     password: ""          # optional basic auth password
+
+# ACL — fine-grained access control per identity and repo path.
+# Omit this section entirely to disable ACL (all requests are allowed).
+# acl:
+#   default_role: read-only       # deny, read-only, append-only, full-access
+#   trusted_proxies:              # CIDRs of trusted reverse proxies for X-Forwarded-For
+#     - 10.0.0.0/8               # if omitted, Echo defaults are used (loopback + link-local + private nets)
+#     - 172.16.0.0/12
+#   rules:
+#     - paths: ["/server-a"]
+#       identities: ["100.64.0.1"]
+#       permission: full-access   # this host gets full access to /server-a
+#     - paths: ["/server-b", "/server-c"]
+#       identities: ["*"]         # "*" matches any identity
+#       permission: append-only
+#     - paths: ["/private"]
+#       identities: ["*"]
+#       permission: deny          # deny overrides any other rule at the same path depth

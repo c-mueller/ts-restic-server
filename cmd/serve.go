@@ -2,17 +2,21 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"os/signal"
 	"syscall"
 
+	"github.com/c-mueller/ts-restic-server/internal/acl"
 	"github.com/c-mueller/ts-restic-server/internal/config"
 	"github.com/c-mueller/ts-restic-server/internal/server"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/c-mueller/ts-restic-server/internal/storage/filesystem"
 	"github.com/c-mueller/ts-restic-server/internal/storage/memory"
-	s3backend "github.com/c-mueller/ts-restic-server/internal/storage/s3"
 	rclonebackend "github.com/c-mueller/ts-restic-server/internal/storage/rclone"
+	s3backend "github.com/c-mueller/ts-restic-server/internal/storage/s3"
 	webdavbackend "github.com/c-mueller/ts-restic-server/internal/storage/webdav"
+	"github.com/labstack/echo/v4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -59,7 +63,17 @@ func runServe(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	srv := server.New(cfg, backend, logger)
+	aclEngine, err := buildACLEngine(cfg.ACL)
+	if err != nil {
+		return err
+	}
+
+	ipExtractor, err := buildIPExtractor(cfg)
+	if err != nil {
+		return err
+	}
+
+	srv := server.New(cfg, backend, logger, aclEngine, ipExtractor)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -82,6 +96,65 @@ func buildLogger(level string) (*zap.Logger, error) {
 	}
 
 	return zapCfg.Build()
+}
+
+func buildACLEngine(cfg *config.ACLConfig) (*acl.Engine, error) {
+	if cfg == nil {
+		return nil, nil
+	}
+
+	defaultPerm, err := acl.ParsePermission(cfg.DefaultRole)
+	if err != nil {
+		return nil, err
+	}
+
+	rules := make([]acl.Rule, len(cfg.Rules))
+	for i, r := range cfg.Rules {
+		perm, err := acl.ParsePermission(r.Permission)
+		if err != nil {
+			return nil, err
+		}
+		rules[i] = acl.Rule{
+			Paths:      r.Paths,
+			Identities: r.Identities,
+			Permission: perm,
+		}
+	}
+
+	return acl.New(defaultPerm, rules)
+}
+
+func buildIPExtractor(cfg *config.Config) (echo.IPExtractor, error) {
+	// Tailscale: direct connection, no proxy headers needed.
+	if cfg.ListenMode == "tailscale" {
+		return echo.ExtractIPDirect(), nil
+	}
+
+	// Plain mode without ACL: safe default, ignore proxy headers.
+	if cfg.ACL == nil {
+		return echo.ExtractIPDirect(), nil
+	}
+
+	// Plain mode with ACL: evaluate X-Forwarded-For from trusted proxies.
+	if len(cfg.ACL.TrustedProxies) == 0 {
+		// No explicit proxies — use Echo defaults (loopback + link-local + private nets).
+		return echo.ExtractIPFromXFFHeader(), nil
+	}
+
+	// Explicit trusted proxies: trust only the configured CIDRs.
+	opts := []echo.TrustOption{
+		echo.TrustLoopback(false),
+		echo.TrustLinkLocal(false),
+		echo.TrustPrivateNet(false),
+	}
+	for _, cidr := range cfg.ACL.TrustedProxies {
+		_, ipNet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return nil, fmt.Errorf("parsing trusted proxy CIDR %q: %w", cidr, err)
+		}
+		opts = append(opts, echo.TrustIPRange(ipNet))
+	}
+	return echo.ExtractIPFromXFFHeader(opts...), nil
 }
 
 func buildBackend(cfg *config.Config) (storage.Backend, error) {
