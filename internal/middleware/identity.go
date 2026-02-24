@@ -12,6 +12,7 @@ import (
 )
 
 type identityKey struct{}
+type whoIsResultKey struct{}
 
 // GetIdentity returns the resolved identities (IP, FQDN, short hostname) from the request context.
 func GetIdentity(ctx context.Context) []string {
@@ -21,8 +22,21 @@ func GetIdentity(ctx context.Context) []string {
 	return nil
 }
 
+// GetWhoIsResult returns the WhoIs result from the request context, or nil if not available.
+func GetWhoIsResult(ctx context.Context) *WhoIsResult {
+	if v, ok := ctx.Value(whoIsResultKey{}).(*WhoIsResult); ok {
+		return v
+	}
+	return nil
+}
+
 func setIdentity(c echo.Context, ids []string) {
 	ctx := context.WithValue(c.Request().Context(), identityKey{}, ids)
+	c.SetRequest(c.Request().WithContext(ctx))
+}
+
+func setWhoIsResult(c echo.Context, result *WhoIsResult) {
+	ctx := context.WithValue(c.Request().Context(), whoIsResultKey{}, result)
 	c.SetRequest(c.Request().WithContext(ctx))
 }
 
@@ -185,6 +199,7 @@ func WhoIsIdentity(whoIs WhoIsFunc, cacheTTL time.Duration, logger *zap.Logger) 
 			cache.Set(ip, ids)
 			logger.Debug("whois resolved", zap.String("ip", ip), zap.Strings("identities", ids))
 			setIdentity(c, ids)
+			setWhoIsResult(c, result)
 			return next(c)
 		}
 	}
