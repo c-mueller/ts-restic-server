@@ -1,26 +1,26 @@
 # Testing
 
-## Voraussetzungen
+## Prerequisites
 
-| Voraussetzung | Benötigt für |
+| Prerequisite | Required for |
 |---|---|
-| Go (siehe `go.mod`) | Alle Tests |
-| `restic` Binary | Integrationstests |
-| Docker | S3-Backend-Test (MinIO-Container) |
+| Go (see `go.mod`) | All tests |
+| `restic` binary | Integration tests |
+| Docker | S3 backend test (MinIO container) |
 
-## Tests ausführen
+## Running tests
 
 ```bash
-# Alle Tests (Unit + Integration)
+# All tests (unit + integration)
 go test ./...
 
-# Nur Unit-Tests / schnelle Tests (Integrationstests werden übersprungen)
+# Unit tests only (skips integration tests)
 go test -short ./...
 
-# Nur Integrationstests
+# Integration tests only
 go test -v ./tests/integration/
 
-# Einzelnes Backend testen
+# Single backend
 go test -v -run TestMemoryBackend      ./tests/integration/
 go test -v -run TestFilesystemBackend  ./tests/integration/
 go test -v -run TestWebDAVBackend      ./tests/integration/
@@ -28,60 +28,61 @@ go test -v -run TestRcloneBackend      ./tests/integration/
 go test -v -run TestS3Backend          ./tests/integration/
 ```
 
-## Integrationstests
+## Integration tests
 
-Die Integrationstests prüfen den vollständigen Restic-Lifecycle gegen jedes Storage-Backend:
+The integration tests exercise the full restic lifecycle against each storage backend:
 
-1. Testdaten generieren (deterministische Zufallsdaten, seed-basiert)
+1. Generate test data (deterministic random data, seed-based)
 2. `restic init`
-3. `restic backup` (Snapshot 1)
-4. Delta-Dateien hinzufügen, `restic backup` (Snapshot 2)
-5. Snapshot-Liste prüfen (erwartet: 2)
-6. `restic restore` Snapshot 1 + SHA-256-Hash-Vergleich
-7. `restic restore` Snapshot 2 + SHA-256-Hash-Vergleich
-8. `restic forget --prune` Snapshot 1
-9. Snapshot-Liste prüfen (erwartet: 1)
+3. `restic backup` (snapshot 1)
+4. Add delta files, `restic backup` (snapshot 2)
+5. Verify snapshot list (expected: 2)
+6. `restic restore` snapshot 1 + SHA-256 hash comparison
+7. `restic restore` snapshot 2 + SHA-256 hash comparison
+8. `restic forget --prune` snapshot 1
+9. Verify snapshot list (expected: 1)
 
-### Testdaten
+### Test data
 
 **Dataset A (Mixed-Size, ~100 MB):**
 
-- 50 × 1 MB Dateien
-- 100 × 100 KB Dateien
-- 200 × 10 KB Dateien
-- 10 × 512 KB Delta-Dateien (für Snapshot 2)
+- 50 × 1 MB files
+- 100 × 100 KB files
+- 200 × 10 KB files
+- 10 × 512 KB delta files (for snapshot 2)
 
 **Dataset B (Single Large File, 100 MB):**
 
-- 1 × 100 MB Datei (Edge Case für Pack-Handling)
+- 1 × 100 MB file (edge case for pack handling)
 
-Alle Daten sind schlecht komprimierbar (Zufallsdaten) und deterministisch (fester Seed).
+All data is poorly compressible (random data) and deterministic (fixed seed).
 
-### Backend-Testmatrix
+### Backend test matrix
 
-| Backend | Externe Abhängigkeit | Infrastruktur |
+| Backend | External dependency | Infrastructure |
 |---|---|---|
-| Memory | Keine | In-Process |
-| Filesystem | Keine | `t.TempDir()` |
-| WebDAV | Keine | In-Process Go WebDAV-Server |
-| Rclone | Keine | Zweite ts-restic-server-Instanz mit Memory-Backend |
+| Memory | None | In-process |
+| Filesystem | None | `t.TempDir()` |
+| WebDAV | None | In-process Go WebDAV server |
+| Rclone | None | Second ts-restic-server instance with memory backend |
 | S3 | Docker | MinIO via testcontainers-go |
 
-### Skip-Verhalten
+### Skip behavior
 
-Tests werden automatisch übersprungen wenn Voraussetzungen fehlen:
+Tests are automatically skipped when prerequisites are missing:
 
-| Bedingung | Auswirkung |
+| Condition | Effect |
 |---|---|
-| `-short` Flag | Alle Integrationstests übersprungen |
-| `restic` Binary fehlt | Alle Integrationstests übersprungen |
-| Docker nicht verfügbar | Nur S3-Test übersprungen |
+| `-short` flag | All integration tests skipped |
+| `restic` binary missing | All integration tests skipped |
+| Docker not available | Only S3 test skipped |
 
-## CI-Pipeline
+## CI pipeline
 
-Die GitHub Actions Pipeline besteht aus zwei Stufen:
+The GitHub Actions pipeline consists of three stages:
 
-1. **Unit & Vet** — `go vet` + `go test -short` (schnell, kein restic/Docker nötig)
-2. **Integration** — Ein Job pro Backend (parallel, Matrix-Build), läuft nur wenn Unit-Tests bestehen
+1. **Lint** — pre-commit hooks (gofmt, markdownlint, yamllint, detect-secrets, trailing whitespace, YAML syntax)
+2. **Unit & Vet** — `go vet` + `go test -short` (fast, no restic/Docker required)
+3. **Integration** — One job per backend (parallel, matrix build), runs only when unit tests pass
 
-Die S3-Tests laufen mit einem ephemeren MinIO-Container via testcontainers-go. Docker ist auf den GitHub Actions Runnern vorinstalliert.
+The S3 tests use an ephemeral MinIO container via testcontainers-go. Docker is pre-installed on the GitHub Actions runners.
