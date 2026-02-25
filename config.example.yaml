@@ -8,6 +8,10 @@ tailscale:
   state_dir: ./ts-state
   auth_key: ""            # TS_AUTHKEY or set via RESTIC_TAILSCALE_AUTH_KEY
 
+metrics:
+  enabled: true
+  password: ""              # if set, /-/metrics requires Basic Auth (user: prometheus)
+
 storage:
   backend: filesystem     # "filesystem", "s3", "memory"
   path: ./restic_data

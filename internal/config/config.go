@@ -9,13 +9,19 @@ import (
 )
 
 type Config struct {
-	Listen     string     `mapstructure:"listen"`
-	ListenMode string     `mapstructure:"listen_mode"`
-	AppendOnly bool       `mapstructure:"append_only"`
-	LogLevel   string     `mapstructure:"log_level"`
-	Tailscale  Tailscale  `mapstructure:"tailscale"`
-	Storage    Storage    `mapstructure:"storage"`
-	ACL        *ACLConfig `mapstructure:"acl"`
+	Listen     string        `mapstructure:"listen"`
+	ListenMode string        `mapstructure:"listen_mode"`
+	AppendOnly bool          `mapstructure:"append_only"`
+	LogLevel   string        `mapstructure:"log_level"`
+	Tailscale  Tailscale     `mapstructure:"tailscale"`
+	Storage    Storage       `mapstructure:"storage"`
+	ACL        *ACLConfig    `mapstructure:"acl"`
+	Metrics    MetricsConfig `mapstructure:"metrics"`
+}
+
+type MetricsConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Password string `mapstructure:"password"`
 }
 
 type ACLConfig struct {
@@ -83,6 +89,8 @@ func SetDefaults() {
 	viper.SetDefault("storage.max_memory_bytes", 104857600) // 100MB
 	viper.SetDefault("storage.data_sharding", true)
 	viper.SetDefault("acl.identity_cache_size", 1000)
+	viper.SetDefault("metrics.enabled", true)
+	viper.SetDefault("metrics.password", "")
 }
 
 func Load() (*Config, error) {

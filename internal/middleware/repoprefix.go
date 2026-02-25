@@ -31,6 +31,12 @@ func RepoPrefix() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			path := c.Request().URL.Path
+
+			// System routes (e.g. /-/metrics) bypass repo prefix extraction.
+			if strings.HasPrefix(path, "/-/") {
+				return next(c)
+			}
+
 			segments := strings.Split(strings.Trim(path, "/"), "/")
 
 			// Validate all segments before processing.
