@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 
+	"github.com/c-mueller/ts-restic-server/internal/apierror"
 	"github.com/c-mueller/ts-restic-server/internal/metrics"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -21,7 +22,7 @@ func Recover(logger *zap.Logger) echo.MiddlewareFunc {
 						zap.String("request_id", reqID),
 						zap.Any("panic", r),
 					)
-					c.NoContent(http.StatusInternalServerError)
+					apierror.New(c, http.StatusInternalServerError, "internal server error", "", reqID)
 				}
 			}()
 			return next(c)

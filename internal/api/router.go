@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, appendOnly bool, aclEngine *acl.Engine, identityMW echo.MiddlewareFunc, metricsCfg config.MetricsConfig) {
+func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, appendOnly bool, aclEngine *acl.Engine, identityMW echo.MiddlewareFunc, tlsEnabled bool, metricsCfg config.MetricsConfig) {
 	h := &Handler{
 		Backend:    backend,
 		Logger:     logger,
@@ -27,6 +27,7 @@ func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, a
 
 	// API middleware chain
 	e.Use(middleware.Recover(logger))
+	e.Use(middleware.SecurityHeaders(tlsEnabled))
 	e.Use(middleware.RequestID())
 	e.Use(middleware.Logger(logger))
 	if identityMW != nil {

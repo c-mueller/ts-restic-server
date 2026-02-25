@@ -202,14 +202,19 @@ func buildIdentityMiddleware(cfg *config.Config, logger *zap.Logger, tsServer *t
 		ttl = time.Duration(cfg.ACL.RDNSCacheTTL) * time.Second
 	}
 
+	cacheSize := 1000
+	if cfg.ACL.IdentityCacheSize > 0 {
+		cacheSize = cfg.ACL.IdentityCacheSize
+	}
+
 	// Tailscale: use WhoIs for tags + user + hostname
 	if cfg.ListenMode == "tailscale" && tsServer != nil {
 		lc, err := tsServer.LocalClient()
 		if err != nil {
 			logger.Warn("tailscale LocalClient failed, falling back to rDNS", zap.Error(err))
-			return middleware.RDNSIdentity("100.100.100.100:53", ttl, true, logger)
+			return middleware.RDNSIdentity("100.100.100.100:53", ttl, true, cacheSize, logger)
 		}
-		return middleware.WhoIsIdentity(buildWhoIsFunc(lc), ttl, logger)
+		return middleware.WhoIsIdentity(buildWhoIsFunc(lc), ttl, cacheSize, logger)
 	}
 
 	// Plain: rDNS as before
@@ -218,7 +223,7 @@ func buildIdentityMiddleware(cfg *config.Config, logger *zap.Logger, tsServer *t
 		dnsServer = cfg.ACL.DNSServer
 	}
 
-	return middleware.RDNSIdentity(dnsServer, ttl, false, logger)
+	return middleware.RDNSIdentity(dnsServer, ttl, false, cacheSize, logger)
 }
 
 func buildWhoIsFunc(lc *tailscale.LocalClient) middleware.WhoIsFunc {

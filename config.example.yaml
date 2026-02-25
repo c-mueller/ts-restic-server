@@ -40,6 +40,7 @@ storage:
 #   default_role: read-only       # deny, read-only, append-only, full-access
 #   dns_server: ""                # custom DNS for rDNS lookups (plain mode; Tailscale uses 100.100.100.100 automatically)
 #   rdns_cache_ttl: 600           # rDNS cache TTL in seconds (default: 600)
+#   identity_cache_size: 1000    # max identity cache entries (default: 1000)
 #   trusted_proxies:              # CIDRs of trusted reverse proxies for X-Forwarded-For
 #     - 10.0.0.0/8               # if omitted, Echo defaults are used (loopback + link-local + private nets)
 #     - 172.16.0.0/12

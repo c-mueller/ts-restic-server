@@ -25,11 +25,12 @@ type MetricsConfig struct {
 }
 
 type ACLConfig struct {
-	DefaultRole    string    `mapstructure:"default_role"`
-	TrustedProxies []string  `mapstructure:"trusted_proxies"`
-	DNSServer      string    `mapstructure:"dns_server"`
-	RDNSCacheTTL   int       `mapstructure:"rdns_cache_ttl"`
-	Rules          []ACLRule `mapstructure:"rules"`
+	DefaultRole       string    `mapstructure:"default_role"`
+	TrustedProxies    []string  `mapstructure:"trusted_proxies"`
+	DNSServer         string    `mapstructure:"dns_server"`
+	RDNSCacheTTL      int       `mapstructure:"rdns_cache_ttl"`
+	IdentityCacheSize int       `mapstructure:"identity_cache_size"`
+	Rules             []ACLRule `mapstructure:"rules"`
 }
 
 type ACLRule struct {
@@ -87,6 +88,7 @@ func SetDefaults() {
 	viper.SetDefault("storage.path", "./restic_data")
 	viper.SetDefault("storage.max_memory_bytes", 104857600) // 100MB
 	viper.SetDefault("storage.data_sharding", true)
+	viper.SetDefault("acl.identity_cache_size", 1000)
 	viper.SetDefault("metrics.enabled", true)
 	viper.SetDefault("metrics.password", "")
 }
@@ -101,7 +103,7 @@ func Load() (*Config, error) {
 
 	// Viper may set ACL to a zero-value struct instead of nil when
 	// no acl: block is present. Normalize to nil if effectively empty.
-	if cfg.ACL != nil && cfg.ACL.DefaultRole == "" && len(cfg.ACL.Rules) == 0 && len(cfg.ACL.TrustedProxies) == 0 && cfg.ACL.DNSServer == "" && cfg.ACL.RDNSCacheTTL == 0 {
+	if cfg.ACL != nil && cfg.ACL.DefaultRole == "" && len(cfg.ACL.Rules) == 0 && len(cfg.ACL.TrustedProxies) == 0 && cfg.ACL.DNSServer == "" && cfg.ACL.RDNSCacheTTL == 0 && cfg.ACL.IdentityCacheSize == 0 {
 		cfg.ACL = nil
 	}
 
