@@ -18,7 +18,7 @@ func ACL(engine *acl.Engine, logger *zap.Logger) echo.MiddlewareFunc {
 		}
 		return func(c echo.Context) error {
 			identities := GetIdentity(c.Request().Context())
-			if identities == nil {
+			if len(identities) == 0 {
 				identities = []string{c.RealIP()}
 			}
 			repoPrefix := GetRepoPrefix(c.Request().Context())
