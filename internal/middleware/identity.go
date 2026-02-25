@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"container/list"
 	"context"
 	"net"
 	"strings"
@@ -40,42 +41,73 @@ func setWhoIsResult(c echo.Context, result *WhoIsResult) {
 	c.SetRequest(c.Request().WithContext(ctx))
 }
 
-// rdnsCache caches rDNS lookup results with a configurable TTL.
-type rdnsCache struct {
-	mu      sync.RWMutex
-	entries map[string]cacheEntry
-	ttl     time.Duration
-}
-
-type cacheEntry struct {
+// rdnsCacheItem stores a single rDNS cache entry with its key for FIFO eviction.
+type rdnsCacheItem struct {
+	key       string
 	hostnames []string
 	expiry    time.Time
 }
 
-func newRDNSCache(ttl time.Duration) *rdnsCache {
+// rdnsCache caches rDNS lookup results with a configurable TTL and bounded size.
+// When maxSize is reached, the oldest entry (FIFO) is evicted.
+type rdnsCache struct {
+	mu      sync.RWMutex
+	entries map[string]*list.Element
+	order   *list.List
+	ttl     time.Duration
+	maxSize int
+}
+
+func newRDNSCache(ttl time.Duration, maxSize int) *rdnsCache {
 	return &rdnsCache{
-		entries: make(map[string]cacheEntry),
+		entries: make(map[string]*list.Element),
+		order:   list.New(),
 		ttl:     ttl,
+		maxSize: maxSize,
 	}
 }
 
 func (c *rdnsCache) Get(ip string) ([]string, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	entry, ok := c.entries[ip]
-	if !ok || time.Now().After(entry.expiry) {
+	elem, ok := c.entries[ip]
+	if !ok {
 		return nil, false
 	}
-	return entry.hostnames, true
+	item := elem.Value.(*rdnsCacheItem)
+	if time.Now().After(item.expiry) {
+		return nil, false
+	}
+	return item.hostnames, true
 }
 
 func (c *rdnsCache) Set(ip string, hostnames []string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[ip] = cacheEntry{
+
+	// Update existing entry: remove old element, will re-add at back.
+	if elem, ok := c.entries[ip]; ok {
+		c.order.Remove(elem)
+		delete(c.entries, ip)
+	}
+
+	// Evict oldest entry if at capacity.
+	if len(c.entries) >= c.maxSize {
+		oldest := c.order.Front()
+		if oldest != nil {
+			item := oldest.Value.(*rdnsCacheItem)
+			c.order.Remove(oldest)
+			delete(c.entries, item.key)
+		}
+	}
+
+	item := &rdnsCacheItem{
+		key:       ip,
 		hostnames: hostnames,
 		expiry:    time.Now().Add(c.ttl),
 	}
+	elem := c.order.PushBack(item)
+	c.entries[ip] = elem
 }
 
 // RDNSIdentity returns middleware that resolves client IPs to hostnames via rDNS.
@@ -84,8 +116,9 @@ func (c *rdnsCache) Set(ip string, hostnames []string) {
 //   - dnsServer: DNS server for rDNS ("" = system default, "100.100.100.100:53" for Tailscale)
 //   - cacheTTL: how long to cache rDNS results
 //   - includeShortHostname: if true, add the first label of the FQDN (Tailscale mode)
+//   - maxCacheSize: maximum number of entries in the identity cache
 //   - logger: for debug/warn logging
-func RDNSIdentity(dnsServer string, cacheTTL time.Duration, includeShortHostname bool, logger *zap.Logger) echo.MiddlewareFunc {
+func RDNSIdentity(dnsServer string, cacheTTL time.Duration, includeShortHostname bool, maxCacheSize int, logger *zap.Logger) echo.MiddlewareFunc {
 	var resolver *net.Resolver
 	if dnsServer == "" {
 		resolver = &net.Resolver{PreferGo: true}
@@ -99,7 +132,7 @@ func RDNSIdentity(dnsServer string, cacheTTL time.Duration, includeShortHostname
 		}
 	}
 
-	cache := newRDNSCache(cacheTTL)
+	cache := newRDNSCache(cacheTTL, maxCacheSize)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
@@ -167,50 +200,81 @@ type WhoIsResult struct {
 // WhoIsFunc resolves a remote address (ip:port) to identity info.
 type WhoIsFunc func(ctx context.Context, remoteAddr string) (*WhoIsResult, error)
 
-// whoIsCache caches WhoIs lookup results (identities + structured result) with a configurable TTL.
-type whoIsCache struct {
-	mu      sync.RWMutex
-	entries map[string]whoIsCacheEntry
-	ttl     time.Duration
-}
-
-type whoIsCacheEntry struct {
+// whoIsCacheItem stores a single WhoIs cache entry with its key for FIFO eviction.
+type whoIsCacheItem struct {
+	key    string
 	ids    []string
 	result *WhoIsResult // nil for negative cache entries
 	expiry time.Time
 }
 
-func newWhoIsCache(ttl time.Duration) *whoIsCache {
+// whoIsCache caches WhoIs lookup results (identities + structured result) with a configurable TTL
+// and bounded size. When maxSize is reached, the oldest entry (FIFO) is evicted.
+type whoIsCache struct {
+	mu      sync.RWMutex
+	entries map[string]*list.Element
+	order   *list.List
+	ttl     time.Duration
+	maxSize int
+}
+
+func newWhoIsCache(ttl time.Duration, maxSize int) *whoIsCache {
 	return &whoIsCache{
-		entries: make(map[string]whoIsCacheEntry),
+		entries: make(map[string]*list.Element),
+		order:   list.New(),
 		ttl:     ttl,
+		maxSize: maxSize,
 	}
 }
 
 func (c *whoIsCache) Get(ip string) ([]string, *WhoIsResult, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	entry, ok := c.entries[ip]
-	if !ok || time.Now().After(entry.expiry) {
+	elem, ok := c.entries[ip]
+	if !ok {
 		return nil, nil, false
 	}
-	return entry.ids, entry.result, true
+	item := elem.Value.(*whoIsCacheItem)
+	if time.Now().After(item.expiry) {
+		return nil, nil, false
+	}
+	return item.ids, item.result, true
 }
 
 func (c *whoIsCache) Set(ip string, ids []string, result *WhoIsResult) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[ip] = whoIsCacheEntry{
+
+	// Update existing entry: remove old element, will re-add at back.
+	if elem, ok := c.entries[ip]; ok {
+		c.order.Remove(elem)
+		delete(c.entries, ip)
+	}
+
+	// Evict oldest entry if at capacity.
+	if len(c.entries) >= c.maxSize {
+		oldest := c.order.Front()
+		if oldest != nil {
+			item := oldest.Value.(*whoIsCacheItem)
+			c.order.Remove(oldest)
+			delete(c.entries, item.key)
+		}
+	}
+
+	item := &whoIsCacheItem{
+		key:    ip,
 		ids:    ids,
 		result: result,
 		expiry: time.Now().Add(c.ttl),
 	}
+	elem := c.order.PushBack(item)
+	c.entries[ip] = elem
 }
 
 // WhoIsIdentity returns middleware that resolves client identities via Tailscale WhoIs.
 // This provides richer identity info than rDNS: tags, user login, hostname.
-func WhoIsIdentity(whoIs WhoIsFunc, cacheTTL time.Duration, logger *zap.Logger) echo.MiddlewareFunc {
-	cache := newWhoIsCache(cacheTTL)
+func WhoIsIdentity(whoIs WhoIsFunc, cacheTTL time.Duration, maxCacheSize int, logger *zap.Logger) echo.MiddlewareFunc {
+	cache := newWhoIsCache(cacheTTL, maxCacheSize)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
