@@ -3,8 +3,10 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/c-mueller/ts-restic-server/internal/acl"
+	"github.com/c-mueller/ts-restic-server/internal/metrics"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
@@ -25,7 +27,18 @@ func ACL(engine *acl.Engine, logger *zap.Logger) echo.MiddlewareFunc {
 			repoPath := "/" + repoPrefix
 			op := classifyOperation(c.Request().Method, c.Request().URL.Path)
 
-			if !engine.Allowed(identities, repoPath, op) {
+			aclStart := time.Now()
+			allowed := engine.Allowed(identities, repoPath, op)
+			aclResult := "allowed"
+			if !allowed {
+				aclResult = "denied"
+			}
+			if metrics.Registry != nil {
+				metrics.ACLEvaluationDuration.WithLabelValues(aclResult).Observe(time.Since(aclStart).Seconds())
+				metrics.ACLDecisionsTotal.WithLabelValues(aclResult).Inc()
+			}
+
+			if !allowed {
 				logger.Warn("acl denied",
 					zap.String("request_id", GetRequestID(c.Request().Context())),
 					zap.Strings("identities", identities),

@@ -12,10 +12,12 @@ import (
 
 	"github.com/c-mueller/ts-restic-server/internal/acl"
 	"github.com/c-mueller/ts-restic-server/internal/config"
+	"github.com/c-mueller/ts-restic-server/internal/metrics"
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/server"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/c-mueller/ts-restic-server/internal/storage/filesystem"
+	"github.com/c-mueller/ts-restic-server/internal/storage/instrumented"
 	"github.com/c-mueller/ts-restic-server/internal/storage/memory"
 	rclonebackend "github.com/c-mueller/ts-restic-server/internal/storage/rclone"
 	s3backend "github.com/c-mueller/ts-restic-server/internal/storage/s3"
@@ -48,8 +50,11 @@ func init() {
 	viper.BindPFlag("listen_mode", serveCmd.Flags().Lookup("listen-mode"))
 	viper.BindPFlag("append_only", serveCmd.Flags().Lookup("append-only"))
 	viper.BindPFlag("log_level", serveCmd.Flags().Lookup("log-level"))
+	serveCmd.Flags().String("metrics-password", "", "password for /-/metrics endpoint (username: prometheus)")
+
 	viper.BindPFlag("storage.backend", serveCmd.Flags().Lookup("storage-backend"))
 	viper.BindPFlag("storage.path", serveCmd.Flags().Lookup("storage-path"))
+	viper.BindPFlag("metrics.password", serveCmd.Flags().Lookup("metrics-password"))
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
@@ -78,9 +83,17 @@ func runServe(cmd *cobra.Command, args []string) error {
 		defer tsServer.Close()
 	}
 
+	if cfg.Metrics.Enabled {
+		metrics.Init(cfg.Storage.Backend)
+	}
+
 	backend, err := buildBackend(cfg)
 	if err != nil {
 		return err
+	}
+
+	if cfg.Metrics.Enabled {
+		backend = instrumented.New(backend, cfg.Storage.Backend)
 	}
 
 	aclEngine, err := buildACLEngine(cfg.ACL)

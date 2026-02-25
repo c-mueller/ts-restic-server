@@ -30,7 +30,7 @@ func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEng
 		e.IPExtractor = ipExtractor
 	}
 
-	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine, identityMW)
+	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine, identityMW, cfg.Metrics)
 
 	return &Server{
 		cfg:      cfg,
