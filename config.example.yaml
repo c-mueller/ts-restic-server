@@ -12,6 +12,10 @@ metrics:
   enabled: true
   password: ""              # if set, /-/metrics requires Basic Auth (user: prometheus)
 
+# Environment variable substitution: use ${VAR_NAME} in any string value.
+# By default, missing variables cause a startup error.
+# Use --env-lenient to allow unresolved placeholders.
+
 storage:
   backend: filesystem     # "filesystem", "s3", "memory"
   path: ./restic_data
@@ -21,9 +25,11 @@ storage:
     bucket: my-bucket
     prefix: ""
     region: eu-central-1
-    endpoint: ""          # custom S3 endpoint (e.g. MinIO)
-    access_key: ""        # leave empty to use AWS default credential chain
+    endpoint: ""                       # custom S3 endpoint (e.g. MinIO)
+    access_key: ""                     # leave empty to use AWS default credential chain
     secret_key: ""
+    # access_key: ${AWS_ACCESS_KEY_ID}       # env var example
+    # secret_key: ${AWS_SECRET_ACCESS_KEY}   # env var example
   webdav:
     endpoint: ""          # WebDAV server URL (e.g. https://cloud.example.com/remote.php/dav/files/user)
     username: ""
@@ -33,6 +39,10 @@ storage:
     endpoint: ""          # rclone serve restic URL (e.g. http://localhost:8080)
     username: ""          # optional basic auth username
     password: ""          # optional basic auth password
+
+# Optional: load ACL rules from a separate file.
+# Cannot be used together with inline acl: section.
+# acl_file: /etc/ts-restic-server/acl.yaml
 
 # ACL — fine-grained access control per identity and repo path.
 # Omit this section entirely to disable ACL (all requests are allowed).

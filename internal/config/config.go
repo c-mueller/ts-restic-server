@@ -3,9 +3,11 @@ package config
 import (
 	"fmt"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
@@ -15,6 +17,7 @@ type Config struct {
 	LogLevel   string        `mapstructure:"log_level"`
 	Tailscale  Tailscale     `mapstructure:"tailscale"`
 	Storage    Storage       `mapstructure:"storage"`
+	ACLFile    string        `mapstructure:"acl_file"`
 	ACL        *ACLConfig    `mapstructure:"acl"`
 	Metrics    MetricsConfig `mapstructure:"metrics"`
 }
@@ -25,18 +28,18 @@ type MetricsConfig struct {
 }
 
 type ACLConfig struct {
-	DefaultRole       string    `mapstructure:"default_role"`
-	TrustedProxies    []string  `mapstructure:"trusted_proxies"`
-	DNSServer         string    `mapstructure:"dns_server"`
-	RDNSCacheTTL      int       `mapstructure:"rdns_cache_ttl"`
-	IdentityCacheSize int       `mapstructure:"identity_cache_size"`
-	Rules             []ACLRule `mapstructure:"rules"`
+	DefaultRole       string    `mapstructure:"default_role" yaml:"default_role"`
+	TrustedProxies    []string  `mapstructure:"trusted_proxies" yaml:"trusted_proxies"`
+	DNSServer         string    `mapstructure:"dns_server" yaml:"dns_server"`
+	RDNSCacheTTL      int       `mapstructure:"rdns_cache_ttl" yaml:"rdns_cache_ttl"`
+	IdentityCacheSize int       `mapstructure:"identity_cache_size" yaml:"identity_cache_size"`
+	Rules             []ACLRule `mapstructure:"rules" yaml:"rules"`
 }
 
 type ACLRule struct {
-	Paths      []string `mapstructure:"paths"`
-	Identities []string `mapstructure:"identities"`
-	Permission string   `mapstructure:"permission"`
+	Paths      []string `mapstructure:"paths" yaml:"paths"`
+	Identities []string `mapstructure:"identities" yaml:"identities"`
+	Permission string   `mapstructure:"permission" yaml:"permission"`
 }
 
 type Tailscale struct {
@@ -93,7 +96,7 @@ func SetDefaults() {
 	viper.SetDefault("metrics.password", "")
 }
 
-func Load() (*Config, error) {
+func Load(envLenient bool) (*Config, error) {
 	SetDefaults()
 
 	var cfg Config
@@ -107,11 +110,50 @@ func Load() (*Config, error) {
 		cfg.ACL = nil
 	}
 
+	// Resolve ${VAR_NAME} placeholders in all string fields.
+	if err := ResolveEnvVars(&cfg, envLenient); err != nil {
+		return nil, fmt.Errorf("resolving env vars: %w", err)
+	}
+
+	// Load ACL from separate file if configured.
+	if cfg.ACLFile != "" {
+		if cfg.ACL != nil {
+			return nil, fmt.Errorf("both acl_file and inline acl specified; use one or the other")
+		}
+		aclCfg, err := loadACLFile(cfg.ACLFile, envLenient)
+		if err != nil {
+			return nil, fmt.Errorf("loading acl file %q: %w", cfg.ACLFile, err)
+		}
+		cfg.ACL = aclCfg
+	}
+
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("validating config: %w", err)
 	}
 
 	return &cfg, nil
+}
+
+func loadACLFile(path string, envLenient bool) (*ACLConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var aclCfg ACLConfig
+	if err := yaml.Unmarshal(data, &aclCfg); err != nil {
+		return nil, fmt.Errorf("parsing YAML: %w", err)
+	}
+
+	if err := ResolveEnvVars(&aclCfg, envLenient); err != nil {
+		return nil, err
+	}
+
+	if err := aclCfg.Validate(); err != nil {
+		return nil, err
+	}
+
+	return &aclCfg, nil
 }
 
 type ValidationError struct {
