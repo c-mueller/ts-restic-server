@@ -2,6 +2,7 @@ listen: ":8880"
 listen_mode: plain       # "plain" or "tailscale"
 append_only: false
 log_level: info
+shutdown_timeout: 30     # graceful shutdown timeout in seconds
 
 tailscale:
   hostname: restic-server

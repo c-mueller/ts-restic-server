@@ -54,6 +54,9 @@ func init() {
 
 	serveCmd.Flags().Bool("env-lenient", false, "allow unresolved ${VAR} placeholders in config values")
 
+	serveCmd.Flags().Int("shutdown-timeout", 0, "graceful shutdown timeout in seconds (default 30)")
+	viper.BindPFlag("shutdown_timeout", serveCmd.Flags().Lookup("shutdown-timeout"))
+
 	viper.BindPFlag("storage.backend", serveCmd.Flags().Lookup("storage-backend"))
 	viper.BindPFlag("storage.path", serveCmd.Flags().Lookup("storage-path"))
 	viper.BindPFlag("metrics.password", serveCmd.Flags().Lookup("metrics-password"))

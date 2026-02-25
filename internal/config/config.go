@@ -11,15 +11,16 @@ import (
 )
 
 type Config struct {
-	Listen     string        `mapstructure:"listen"`
-	ListenMode string        `mapstructure:"listen_mode"`
-	AppendOnly bool          `mapstructure:"append_only"`
-	LogLevel   string        `mapstructure:"log_level"`
-	Tailscale  Tailscale     `mapstructure:"tailscale"`
-	Storage    Storage       `mapstructure:"storage"`
-	ACLFile    string        `mapstructure:"acl_file"`
-	ACL        *ACLConfig    `mapstructure:"acl"`
-	Metrics    MetricsConfig `mapstructure:"metrics"`
+	Listen          string        `mapstructure:"listen"`
+	ListenMode      string        `mapstructure:"listen_mode"`
+	AppendOnly      bool          `mapstructure:"append_only"`
+	LogLevel        string        `mapstructure:"log_level"`
+	ShutdownTimeout int           `mapstructure:"shutdown_timeout"`
+	Tailscale       Tailscale     `mapstructure:"tailscale"`
+	Storage         Storage       `mapstructure:"storage"`
+	ACLFile         string        `mapstructure:"acl_file"`
+	ACL             *ACLConfig    `mapstructure:"acl"`
+	Metrics         MetricsConfig `mapstructure:"metrics"`
 }
 
 type MetricsConfig struct {
@@ -91,6 +92,7 @@ func SetDefaults() {
 	viper.SetDefault("storage.path", "./restic_data")
 	viper.SetDefault("storage.max_memory_bytes", 104857600) // 100MB
 	viper.SetDefault("storage.data_sharding", true)
+	viper.SetDefault("shutdown_timeout", 30)
 	viper.SetDefault("acl.identity_cache_size", 1000)
 	viper.SetDefault("metrics.enabled", true)
 	viper.SetDefault("metrics.password", "")
@@ -170,6 +172,10 @@ func (c *Config) Validate() error {
 	case "plain", "tailscale":
 	default:
 		return fmt.Errorf("invalid listen_mode %q: must be \"plain\" or \"tailscale\"", c.ListenMode)
+	}
+
+	if c.ShutdownTimeout <= 0 {
+		return fmt.Errorf("shutdown_timeout must be a positive integer (got %d)", c.ShutdownTimeout)
 	}
 
 	switch c.Storage.Backend {
