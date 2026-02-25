@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -13,19 +14,13 @@ import (
 	"go.uber.org/zap"
 )
 
+var validBlobNameRe = regexp.MustCompile(`^[0-9a-fA-F]+$`)
+
 // isValidBlobName checks that a blob name is a non-empty hex string.
 // Restic uses SHA-256 content-addressed storage, so all blob names are
 // hex-encoded hashes. This prevents path traversal via crafted blob names.
 func isValidBlobName(name string) bool {
-	if name == "" {
-		return false
-	}
-	for _, c := range name {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-			return false
-		}
-	}
-	return true
+	return validBlobNameRe.MatchString(name)
 }
 
 func (h *Handler) HeadBlob(c echo.Context) error {
