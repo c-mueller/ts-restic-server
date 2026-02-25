@@ -80,6 +80,11 @@ func RepoPrefix() echo.MiddlewareFunc {
 	}
 }
 
+// ContextWithRepoPrefix returns a new context with the given repo prefix set.
+func ContextWithRepoPrefix(ctx context.Context, prefix string) context.Context {
+	return context.WithValue(ctx, repoPrefixKey{}, prefix)
+}
+
 // GetRepoPrefix returns the repository path prefix from the context.
 func GetRepoPrefix(ctx context.Context) string {
 	if v, ok := ctx.Value(repoPrefixKey{}).(string); ok {
