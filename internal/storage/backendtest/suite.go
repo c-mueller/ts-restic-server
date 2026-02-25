@@ -251,6 +251,57 @@ func RunSuite(t *testing.T, newBackend func(t *testing.T) storage.Backend) {
 		}
 	})
 
+	t.Run("ListBlobs_DataType", func(t *testing.T) {
+		b := newBackend(t)
+		if err := b.CreateRepo(ctx); err != nil {
+			t.Fatalf("CreateRepo: %v", err)
+		}
+
+		// Use blob names with distinct two-character prefixes so that
+		// filesystem backends with data sharding place them in different
+		// shard directories (data/ab/, data/cd/, data/ef/).
+		// ListBlobs must return only the bare name (no shard prefix),
+		// and the round-trip through Stat/Get must still work.
+		items := map[string][]byte{
+			"ab0011223344": []byte("alpha"),
+			"cd5566778899": []byte("bravo-bravo"),
+			"ef00aabbccdd": []byte("charlie-charlie-charlie"),
+		}
+		for name, data := range items {
+			if err := b.SaveBlob(ctx, storage.BlobData, name, bytes.NewReader(data)); err != nil {
+				t.Fatalf("SaveBlob %s: %v", name, err)
+			}
+		}
+
+		blobs, err := b.ListBlobs(ctx, storage.BlobData)
+		if err != nil {
+			t.Fatalf("ListBlobs: %v", err)
+		}
+		if len(blobs) != len(items) {
+			t.Fatalf("ListBlobs len = %d, want %d", len(blobs), len(items))
+		}
+
+		sort.Slice(blobs, func(i, j int) bool { return blobs[i].Name < blobs[j].Name })
+		for _, blob := range blobs {
+			wantData, ok := items[blob.Name]
+			if !ok {
+				t.Errorf("unexpected blob name %q (shard prefix leaked?)", blob.Name)
+				continue
+			}
+			if blob.Size != int64(len(wantData)) {
+				t.Errorf("blob %s size = %d, want %d", blob.Name, blob.Size, int64(len(wantData)))
+			}
+
+			// Verify the blob is accessible by the listed name.
+			size, err := b.StatBlob(ctx, storage.BlobData, blob.Name)
+			if err != nil {
+				t.Errorf("StatBlob %s after list: %v", blob.Name, err)
+			} else if size != int64(len(wantData)) {
+				t.Errorf("StatBlob %s size = %d, want %d", blob.Name, size, int64(len(wantData)))
+			}
+		}
+	})
+
 	t.Run("ListBlobs_WithData", func(t *testing.T) {
 		b := newBackend(t)
 		if err := b.CreateRepo(ctx); err != nil {

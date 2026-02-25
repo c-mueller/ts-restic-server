@@ -200,6 +200,12 @@ func (b *Backend) ListBlobs(ctx context.Context, t storage.BlobType) ([]storage.
 		if info.Mode()&os.ModeSymlink != 0 {
 			return nil
 		}
+		// info.Name() returns the bare filename without any directory prefix.
+		// When data sharding is enabled, blobs live in subdirectories like
+		// data/ab/abcdef..., but filepath.Walk traverses into those shard
+		// directories automatically. The restic REST API expects only the
+		// bare hash name, and blobPath() reconstructs the shard prefix from
+		// the first two characters when needed.
 		blobs = append(blobs, storage.Blob{
 			Name: info.Name(),
 			Size: info.Size(),
