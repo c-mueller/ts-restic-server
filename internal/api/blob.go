@@ -147,7 +147,7 @@ func (h *Handler) DeleteBlob(c echo.Context) error {
 }
 
 func blobParams(c echo.Context) (storage.BlobType, string) {
-	return storage.BlobType(c.Param("type")), c.Param("name")
+	return storage.BlobType(strings.ToLower(c.Param("type"))), c.Param("name")
 }
 
 func parseRange(c echo.Context) (offset, length int64, rangeRequested bool) {
@@ -162,25 +162,28 @@ func parseRange(c echo.Context) (offset, length int64, rangeRequested bool) {
 	}
 
 	parts := strings.SplitN(rangeHeader[6:], "-", 2)
-	if len(parts) != 2 {
+	if len(parts) != 2 || parts[0] == "" {
 		return 0, 0, false
 	}
 
 	start, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
+	if err != nil || start < 0 {
 		return 0, 0, false
 	}
 
-	offset = start
-	rangeRequested = true
-
-	if parts[1] != "" {
-		end, err := strconv.ParseInt(parts[1], 10, 64)
-		if err != nil {
-			return start, 0, true
-		}
-		length = end - start + 1
+	// "bytes=100-" means from offset 100 to EOF (RFC 7233)
+	if parts[1] == "" {
+		return start, 0, true
 	}
 
-	return offset, length, rangeRequested
+	end, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || end < 0 {
+		return 0, 0, false
+	}
+
+	if end < start {
+		return 0, 0, false
+	}
+
+	return start, end - start + 1, true
 }

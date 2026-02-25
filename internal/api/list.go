@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
@@ -12,7 +13,7 @@ import (
 func (h *Handler) ListBlobs(c echo.Context) error {
 	ctx := c.Request().Context()
 	reqID := middleware.GetRequestID(ctx)
-	t := storage.BlobType(c.Param("type"))
+	t := storage.BlobType(strings.ToLower(c.Param("type")))
 
 	if !storage.ValidBlobTypes[t] {
 		return c.NoContent(http.StatusBadRequest)
