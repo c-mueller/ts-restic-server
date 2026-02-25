@@ -29,7 +29,15 @@ jobs:
 
       - run: go vet ./...
 
-      - run: go test -short ./...
+      - name: Run unit tests with coverage
+        run: go test -short -coverprofile=coverage-unit.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage-unit.out
+          flags: unit
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   integration:
     name: Integration (${{ matrix.backend }})
@@ -58,5 +66,12 @@ jobs:
           chmod +x /usr/local/bin/restic
           restic version
 
-      - name: Run integration test
-        run: go test -v -run 'Test${{ matrix.backend }}Backend' -count=1 -timeout=10m ./tests/integration/
+      - name: Run integration test with coverage
+        run: go test -v -run 'Test${{ matrix.backend }}Backend' -count=1 -timeout=10m -coverprofile=coverage-integration-${{ matrix.backend }}.out ./tests/integration/
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage-integration-${{ matrix.backend }}.out
+          flags: integration,${{ matrix.backend }}
+          token: ${{ secrets.CODECOV_TOKEN }}
