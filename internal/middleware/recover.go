@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
+	"runtime/debug"
 
 	"github.com/c-mueller/ts-restic-server/internal/apierror"
 	"github.com/c-mueller/ts-restic-server/internal/metrics"
@@ -20,9 +22,16 @@ func Recover(logger *zap.Logger) echo.MiddlewareFunc {
 					reqID := GetRequestID(c.Request().Context())
 					logger.Error("panic recovered",
 						zap.String("request_id", reqID),
-						zap.Any("panic", r),
+						zap.String("panic", fmt.Sprintf("%v", r)),
+						zap.String("stack", string(debug.Stack())),
 					)
-					apierror.New(c, http.StatusInternalServerError, "internal server error", "", reqID)
+					if !c.Response().Committed {
+						apierror.New(c, http.StatusInternalServerError, "internal server error", "", reqID)
+					} else {
+						logger.Warn("response already committed during panic recovery",
+							zap.String("request_id", reqID),
+						)
+					}
 				}
 			}()
 			return next(c)
