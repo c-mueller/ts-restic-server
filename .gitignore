@@ -22,3 +22,6 @@ restic_data/
 
 # Tailscale state
 ts-state/
+
+# Coverage output
+*.out
