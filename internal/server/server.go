@@ -6,7 +6,9 @@ import (
 
 	"github.com/c-mueller/ts-restic-server/internal/acl"
 	"github.com/c-mueller/ts-restic-server/internal/api"
+	"github.com/c-mueller/ts-restic-server/internal/apierror"
 	"github.com/c-mueller/ts-restic-server/internal/config"
+	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -29,6 +31,10 @@ func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEng
 	if ipExtractor != nil {
 		e.IPExtractor = ipExtractor
 	}
+
+	e.HTTPErrorHandler = apierror.CustomHTTPErrorHandler(func(c echo.Context) string {
+		return middleware.GetRequestID(c.Request().Context())
+	})
 
 	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine, identityMW)
 

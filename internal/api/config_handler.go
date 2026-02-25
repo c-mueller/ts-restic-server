@@ -33,10 +33,10 @@ func (h *Handler) GetConfig(c echo.Context) error {
 	rc, err := h.Backend.GetConfig(ctx)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
-			return c.NoContent(http.StatusNotFound)
+			return apiError(c, http.StatusNotFound, "not found", "")
 		}
 		h.Logger.Error("get config failed", zap.String("request_id", reqID), zap.Error(err))
-		return c.NoContent(http.StatusInternalServerError)
+		return apiError(c, http.StatusInternalServerError, "internal server error", "")
 	}
 	defer rc.Close()
 
@@ -52,10 +52,10 @@ func (h *Handler) SaveConfig(c echo.Context) error {
 	err := h.Backend.SaveConfig(ctx, c.Request().Body)
 	if err != nil {
 		if errors.Is(err, storage.ErrQuotaExceeded) {
-			return c.String(http.StatusInsufficientStorage, "quota exceeded")
+			return apiError(c, http.StatusInsufficientStorage, "quota exceeded", "storage quota has been exceeded")
 		}
 		h.Logger.Error("save config failed", zap.String("request_id", reqID), zap.Error(err))
-		return c.NoContent(http.StatusInternalServerError)
+		return apiError(c, http.StatusInternalServerError, "internal server error", "")
 	}
 
 	return c.NoContent(http.StatusOK)

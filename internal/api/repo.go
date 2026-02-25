@@ -15,7 +15,7 @@ func (h *Handler) CreateRepo(c echo.Context) error {
 	reqID := middleware.GetRequestID(ctx)
 
 	if c.QueryParam("create") != "true" {
-		return c.NoContent(http.StatusBadRequest)
+		return apiError(c, http.StatusBadRequest, "bad request", "repository does not exist and ?create=true was not provided")
 	}
 
 	err := h.Backend.CreateRepo(ctx)
@@ -24,7 +24,7 @@ func (h *Handler) CreateRepo(c echo.Context) error {
 			return c.NoContent(http.StatusOK)
 		}
 		h.Logger.Error("create repo failed", zap.String("request_id", reqID), zap.Error(err))
-		return c.NoContent(http.StatusInternalServerError)
+		return apiError(c, http.StatusInternalServerError, "internal server error", "")
 	}
 
 	return c.NoContent(http.StatusOK)
@@ -35,16 +35,16 @@ func (h *Handler) DeleteRepo(c echo.Context) error {
 	reqID := middleware.GetRequestID(ctx)
 
 	if h.AppendOnly {
-		return c.NoContent(http.StatusForbidden)
+		return apiError(c, http.StatusForbidden, "forbidden", "append-only mode: repository deletion is not allowed")
 	}
 
 	err := h.Backend.DeleteRepo(ctx)
 	if err != nil {
 		if errors.Is(err, storage.ErrRepoNotFound) {
-			return c.NoContent(http.StatusNotFound)
+			return apiError(c, http.StatusNotFound, "not found", "repository not found")
 		}
 		h.Logger.Error("delete repo failed", zap.String("request_id", reqID), zap.Error(err))
-		return c.NoContent(http.StatusInternalServerError)
+		return apiError(c, http.StatusInternalServerError, "internal server error", "")
 	}
 
 	return c.NoContent(http.StatusOK)
