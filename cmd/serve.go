@@ -52,13 +52,16 @@ func init() {
 	viper.BindPFlag("log_level", serveCmd.Flags().Lookup("log-level"))
 	serveCmd.Flags().String("metrics-password", "", "password for /-/metrics endpoint (username: prometheus)")
 
+	serveCmd.Flags().Bool("env-lenient", false, "allow unresolved ${VAR} placeholders in config values")
+
 	viper.BindPFlag("storage.backend", serveCmd.Flags().Lookup("storage-backend"))
 	viper.BindPFlag("storage.path", serveCmd.Flags().Lookup("storage-path"))
 	viper.BindPFlag("metrics.password", serveCmd.Flags().Lookup("metrics-password"))
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
-	cfg, err := config.Load()
+	envLenient, _ := cmd.Flags().GetBool("env-lenient")
+	cfg, err := config.Load(envLenient)
 	if err != nil {
 		return err
 	}

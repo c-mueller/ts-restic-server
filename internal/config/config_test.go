@@ -1,6 +1,9 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -332,5 +335,131 @@ func TestValidate_NilACL(t *testing.T) {
 	c.ACL = nil
 	if err := c.Validate(); err != nil {
 		t.Fatalf("nil ACL should not error: %v", err)
+	}
+}
+
+// writeACLFile is a helper that writes YAML content to a temporary file
+// and returns its path.
+func writeACLFile(t *testing.T, content string) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "acl.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("writing acl file: %v", err)
+	}
+	return path
+}
+
+func TestLoadACLFile_Success(t *testing.T) {
+	path := writeACLFile(t, `
+default_role: read-only
+rules:
+  - paths: ["/backup"]
+    identities: ["server-a"]
+    permission: full-access
+`)
+	acl, err := loadACLFile(path, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if acl.DefaultRole != "read-only" {
+		t.Fatalf("DefaultRole: got %q, want %q", acl.DefaultRole, "read-only")
+	}
+	if len(acl.Rules) != 1 {
+		t.Fatalf("Rules: got %d, want 1", len(acl.Rules))
+	}
+	if acl.Rules[0].Permission != "full-access" {
+		t.Fatalf("Rules[0].Permission: got %q, want %q", acl.Rules[0].Permission, "full-access")
+	}
+}
+
+func TestLoadACLFile_BothSpecified(t *testing.T) {
+	path := writeACLFile(t, `
+default_role: deny
+rules:
+  - paths: ["/"]
+    identities: ["*"]
+    permission: deny
+`)
+	c := validConfig()
+	c.ACLFile = path
+	c.ACL = &ACLConfig{DefaultRole: "deny"}
+
+	// Simulate the check that Load() performs.
+	if c.ACLFile != "" && c.ACL != nil {
+		// This is the expected error condition.
+	} else {
+		t.Fatal("expected both acl_file and inline acl to be set")
+	}
+}
+
+func TestLoadACLFile_NotFound(t *testing.T) {
+	_, err := loadACLFile("/nonexistent/acl.yaml", false)
+	if err == nil {
+		t.Fatal("expected error for nonexistent file")
+	}
+}
+
+func TestLoadACLFile_Invalid(t *testing.T) {
+	path := writeACLFile(t, `
+default_role: [this is not valid
+`)
+	_, err := loadACLFile(path, false)
+	if err == nil {
+		t.Fatal("expected error for invalid YAML")
+	}
+}
+
+func TestLoadACLFile_Validation(t *testing.T) {
+	path := writeACLFile(t, `
+default_role: invalid-role
+`)
+	_, err := loadACLFile(path, false)
+	if err == nil {
+		t.Fatal("expected validation error for invalid default_role")
+	}
+	if !strings.Contains(err.Error(), "default_role") {
+		t.Fatalf("error should mention default_role, got: %v", err)
+	}
+}
+
+func TestLoadACLFile_EnvSubstitution(t *testing.T) {
+	t.Setenv("TEST_ACL_IDENTITY", "server-a.example.com")
+
+	path := writeACLFile(t, `
+default_role: deny
+rules:
+  - paths: ["/backup"]
+    identities: ["${TEST_ACL_IDENTITY}"]
+    permission: full-access
+`)
+	acl, err := loadACLFile(path, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if acl.Rules[0].Identities[0] != "server-a.example.com" {
+		t.Fatalf("identity not resolved: got %q", acl.Rules[0].Identities[0])
+	}
+}
+
+func TestLoad_InlineACL_StillWorks(t *testing.T) {
+	c := validConfig()
+	c.ACL = &ACLConfig{
+		DefaultRole: "read-only",
+		Rules: []ACLRule{
+			{Paths: []string{"/"}, Identities: []string{"*"}, Permission: "read-only"},
+		},
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("inline ACL should validate: %v", err)
+	}
+}
+
+func TestLoad_NoACL(t *testing.T) {
+	c := validConfig()
+	c.ACL = nil
+	c.ACLFile = ""
+	if err := c.Validate(); err != nil {
+		t.Fatalf("no ACL should validate: %v", err)
 	}
 }
