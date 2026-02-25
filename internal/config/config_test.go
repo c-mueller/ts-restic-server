@@ -10,7 +10,8 @@ import (
 // validConfig returns a minimal valid Config for the filesystem backend.
 func validConfig() Config {
 	return Config{
-		ListenMode: "plain",
+		ListenMode:      "plain",
+		ShutdownTimeout: 30,
 		Storage: Storage{
 			Backend: "filesystem",
 			Path:    "/tmp/test",
@@ -21,7 +22,8 @@ func validConfig() Config {
 // validMemoryConfig returns a minimal valid Config for the memory backend.
 func validMemoryConfig() Config {
 	return Config{
-		ListenMode: "plain",
+		ListenMode:      "plain",
+		ShutdownTimeout: 30,
 		Storage: Storage{
 			Backend:        "memory",
 			MaxMemoryBytes: 1024,
@@ -84,6 +86,26 @@ func TestValidate_StorageBackend(t *testing.T) {
 				t.Fatalf("Backend=%q: err=%v, wantErr=%v", tc.backend, err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestValidate_ShutdownTimeout(t *testing.T) {
+	tests := []struct {
+		timeout int
+		wantErr bool
+	}{
+		{0, true},
+		{-1, true},
+		{1, false},
+		{30, false},
+	}
+	for _, tc := range tests {
+		c := validConfig()
+		c.ShutdownTimeout = tc.timeout
+		err := c.Validate()
+		if (err != nil) != tc.wantErr {
+			t.Fatalf("ShutdownTimeout=%d: err=%v, wantErr=%v", tc.timeout, err, tc.wantErr)
+		}
 	}
 }
 

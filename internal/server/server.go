@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net"
+	"time"
 
 	"github.com/c-mueller/ts-restic-server/internal/acl"
 	"github.com/c-mueller/ts-restic-server/internal/api"
@@ -70,7 +71,15 @@ func (s *Server) Run(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		s.logger.Info("shutting down server")
-		return s.echo.Shutdown(context.Background())
+		timeout := time.Duration(s.cfg.ShutdownTimeout) * time.Second
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		if err := s.echo.Shutdown(shutdownCtx); err != nil {
+			s.logger.Warn("graceful shutdown incomplete", zap.Duration("timeout", timeout), zap.Error(err))
+			return err
+		}
+		s.logger.Info("server stopped gracefully")
+		return nil
 	case err := <-errCh:
 		return err
 	}
