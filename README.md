@@ -11,7 +11,10 @@ A [restic](https://restic.net/) REST server written in Go, implementing the offi
 - ACL engine with per-identity, per-repo-path access control (Tailscale tags, users, hostnames, IPs)
 - Append-only mode (deletes blocked except for lock removal)
 - Structured JSON logging with per-request IDs (zap)
-- Configuration via CLI flags, config file, or environment variables
+- Prometheus metrics for HTTP, ACL, storage, and per-host observability
+- HTTP security response headers
+- Graceful shutdown with configurable timeout
+- Configuration via CLI flags, config file, or environment variables (with `${VAR}` substitution)
 
 ## Early Stage Notice
 
@@ -122,11 +125,16 @@ listen: ":8880"
 listen_mode: plain       # "plain" or "tailscale"
 append_only: false
 log_level: info
+shutdown_timeout: 30     # graceful shutdown timeout in seconds
 
 tailscale:
   hostname: restic-server
   state_dir: ./ts-state
   auth_key: ""
+
+metrics:
+  enabled: true
+  password: ""            # if set, /-/metrics requires Basic Auth (user: prometheus)
 
 storage:
   backend: filesystem     # "filesystem", "s3", "webdav", "rclone", "memory"
@@ -145,6 +153,10 @@ storage:
     username: ""
     password: ""
     prefix: ""
+  rclone:
+    endpoint: ""
+    username: ""
+    password: ""
 ```
 
 ### CLI Flags
@@ -158,6 +170,9 @@ storage:
 | `--log-level` | `debug`, `info`, `warn`, `error` |
 | `--storage-backend` | `filesystem`, `s3`, `webdav`, `rclone`, `memory` |
 | `--storage-path` | Path for filesystem backend |
+| `--shutdown-timeout` | Graceful shutdown timeout in seconds (default `30`) |
+| `--metrics-password` | Password for `/-/metrics` endpoint (user: `prometheus`) |
+| `--env-lenient` | Allow unresolved `${VAR}` placeholders in config values |
 
 ## Storage Backends
 

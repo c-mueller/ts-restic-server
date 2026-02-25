@@ -37,11 +37,14 @@ See `docs/docker.md` for Compose setup.
 - `internal/api/blob.go` — HEAD/GET/POST/DELETE /:type/:name
 - `internal/api/list.go` — GET /:type/ (v1: string[], v2: {name,size}[])
 - `internal/api/version.go` — API version negotiation (Accept header)
+- `internal/apierror/` — Standardized HTTP error responses with request_id correlation
+- `internal/metrics/` — Prometheus metrics (HTTP, ACL, storage, per-host); handler for /-/metrics
 - `internal/middleware/requestid.go` — UUID per request, X-Request-ID header
 - `internal/middleware/logger.go` — Zap structured request logging, identity field
 - `internal/middleware/recover.go` — Panic recovery
 - `internal/middleware/repoprefix.go` — Extracts repo path prefix, rewrites URL for routing
 - `internal/middleware/identity.go` — WhoIs (Tailscale) and rDNS (plain) identity resolution, cache
+- `internal/middleware/securityheaders.go` — HTTP security response headers (X-Content-Type-Options, etc.)
 - `internal/middleware/acl.go` — ACL middleware: enforces permissions, JSON error response
 - `internal/acl/acl.go` — ACL engine: rule evaluation, path/identity matching, cascading
 - `internal/acl/acl_test.go` — Unit tests for ACL engine
@@ -52,6 +55,7 @@ See `docs/docker.md` for Compose setup.
 - `internal/storage/s3/` — S3 backend (aws-sdk-go-v2, custom endpoints, static creds)
 - `internal/storage/webdav/` — WebDAV backend (gowebdav, Nextcloud/ownCloud/HiDrive/Box)
 - `internal/storage/rclone/` — Rclone backend (HTTP client proxying to restic REST server)
+- `internal/storage/instrumented/` — Prometheus-instrumented backend wrapper (latency, bytes, errors)
 - `tests/integration/` — Integration tests (full restic lifecycle per backend)
 - `docs/` — Documentation (Docker setup, testing, ACL)
 - `.github/workflows/docker.yml` — Docker build + push (multi-arch, ghcr.io)
@@ -76,6 +80,10 @@ See `config.example.yaml` for all options.
 - **ACL engine**: per-identity + per-repo-path access control with cascading rules (deepest path wins)
 - **Identity resolution**: Tailscale WhoIs (tags, user, hostname, IP) or rDNS (plain mode)
 - **ACL denial**: JSON error response with requester identity; request_id for log correlation
+- **Graceful shutdown**: configurable timeout (default 30s) prevents indefinite hangs on blocked requests
+- **Metrics**: Prometheus endpoint at /-/metrics, optional Basic Auth, instrumented storage wrapper
+- **Security headers**: X-Content-Type-Options, X-Frame-Options, etc. on all responses
+- **Env var substitution**: `${VAR_NAME}` placeholders in config values, `--env-lenient` for optional vars
 
 ## Testing
 
