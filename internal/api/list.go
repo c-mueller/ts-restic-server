@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -16,13 +17,13 @@ func (h *Handler) ListBlobs(c echo.Context) error {
 	t := storage.BlobType(strings.ToLower(c.Param("type")))
 
 	if !storage.ValidBlobTypes[t] {
-		return c.NoContent(http.StatusBadRequest)
+		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
 	}
 
 	blobs, err := h.Backend.ListBlobs(ctx, t)
 	if err != nil {
 		h.Logger.Error("list blobs failed", zap.String("request_id", reqID), zap.Error(err))
-		return c.NoContent(http.StatusInternalServerError)
+		return apiError(c, http.StatusInternalServerError, "internal server error", "")
 	}
 	if blobs == nil {
 		blobs = []storage.Blob{}

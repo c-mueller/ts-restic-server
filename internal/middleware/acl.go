@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/c-mueller/ts-restic-server/internal/acl"
+	"github.com/c-mueller/ts-restic-server/internal/apierror"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
@@ -18,7 +19,7 @@ func ACL(engine *acl.Engine, logger *zap.Logger) echo.MiddlewareFunc {
 		}
 		return func(c echo.Context) error {
 			identities := GetIdentity(c.Request().Context())
-			if identities == nil {
+			if len(identities) == 0 {
 				identities = []string{c.RealIP()}
 			}
 			repoPrefix := GetRepoPrefix(c.Request().Context())
@@ -34,39 +35,34 @@ func ACL(engine *acl.Engine, logger *zap.Logger) echo.MiddlewareFunc {
 					zap.String("method", c.Request().Method),
 					zap.String("path", c.Request().URL.Path),
 				)
-				return c.JSON(http.StatusForbidden, buildDeniedResponse(c, repoPath, op))
+				return aclDeniedResponse(c, repoPath, op)
 			}
 			return next(c)
 		}
 	}
 }
 
-// buildDeniedResponse constructs a JSON error body for ACL denials.
-// In Tailscale mode (WhoIs available), it includes IP, hostname, user, and tags.
-// In plain mode, it includes only the requester IP.
-func buildDeniedResponse(c echo.Context, repoPath string, op acl.OperationType) map[string]interface{} {
-	resp := map[string]interface{}{
-		"error":     "access denied",
+// aclDeniedResponse constructs a standardized JSON error response for ACL denials.
+func aclDeniedResponse(c echo.Context, repoPath string, op acl.OperationType) error {
+	data := map[string]interface{}{
 		"path":      repoPath,
 		"operation": opName(op),
+		"ip":        c.RealIP(),
 	}
 
 	if whoIs := GetWhoIsResult(c.Request().Context()); whoIs != nil {
-		resp["ip"] = c.RealIP()
 		if whoIs.FQDN != "" {
-			resp["hostname"] = whoIs.FQDN
+			data["hostname"] = whoIs.FQDN
 		}
 		if whoIs.LoginName != "" {
-			resp["user"] = whoIs.LoginName
+			data["user"] = whoIs.LoginName
 		}
 		if len(whoIs.Tags) > 0 {
-			resp["tags"] = whoIs.Tags
+			data["tags"] = whoIs.Tags
 		}
-	} else {
-		resp["ip"] = c.RealIP()
 	}
 
-	return resp
+	return apierror.WithData(c, http.StatusForbidden, "access denied", "", GetRequestID(c.Request().Context()), data)
 }
 
 // classifyOperation maps an HTTP method and path to an ACL operation type.

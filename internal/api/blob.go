@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -13,12 +14,24 @@ import (
 	"go.uber.org/zap"
 )
 
+var validBlobNameRe = regexp.MustCompile(`^[0-9a-fA-F]+$`)
+
+// isValidBlobName checks that a blob name is a non-empty hex string.
+// Restic uses SHA-256 content-addressed storage, so all blob names are
+// hex-encoded hashes. This prevents path traversal via crafted blob names.
+func isValidBlobName(name string) bool {
+	return validBlobNameRe.MatchString(name)
+}
+
 func (h *Handler) HeadBlob(c echo.Context) error {
 	ctx := c.Request().Context()
 	t, name := blobParams(c)
 
 	if !storage.ValidBlobTypes[t] {
-		return c.NoContent(http.StatusBadRequest)
+		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
+	}
+	if !isValidBlobName(name) {
+		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
 	size, err := h.Backend.StatBlob(ctx, t, name)
@@ -40,7 +53,10 @@ func (h *Handler) GetBlob(c echo.Context) error {
 	t, name := blobParams(c)
 
 	if !storage.ValidBlobTypes[t] {
-		return c.NoContent(http.StatusBadRequest)
+		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
+	}
+	if !isValidBlobName(name) {
+		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
 	offset, length, rangeRequested := parseRange(c)
@@ -50,16 +66,16 @@ func (h *Handler) GetBlob(c echo.Context) error {
 		totalSize, err := h.Backend.StatBlob(ctx, t, name)
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
-				return c.NoContent(http.StatusNotFound)
+				return apiError(c, http.StatusNotFound, "not found", "")
 			}
 			h.Logger.Error("stat blob failed", zap.String("request_id", reqID), zap.Error(err))
-			return c.NoContent(http.StatusInternalServerError)
+			return apiError(c, http.StatusInternalServerError, "internal server error", "")
 		}
 
 		// Validate range start
 		if offset >= totalSize {
 			c.Response().Header().Set("Content-Range", fmt.Sprintf("bytes */%d", totalSize))
-			return c.NoContent(http.StatusRequestedRangeNotSatisfiable)
+			return apiError(c, http.StatusRequestedRangeNotSatisfiable, "range not satisfiable", "")
 		}
 
 		// Clamp length to available data
@@ -70,10 +86,10 @@ func (h *Handler) GetBlob(c echo.Context) error {
 		rc, err := h.Backend.GetBlob(ctx, t, name, offset, length)
 		if err != nil {
 			if errors.Is(err, storage.ErrNotFound) {
-				return c.NoContent(http.StatusNotFound)
+				return apiError(c, http.StatusNotFound, "not found", "")
 			}
 			h.Logger.Error("get blob failed", zap.String("request_id", reqID), zap.Error(err))
-			return c.NoContent(http.StatusInternalServerError)
+			return apiError(c, http.StatusInternalServerError, "internal server error", "")
 		}
 		defer rc.Close()
 
@@ -87,10 +103,10 @@ func (h *Handler) GetBlob(c echo.Context) error {
 	rc, err := h.Backend.GetBlob(ctx, t, name, 0, 0)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
-			return c.NoContent(http.StatusNotFound)
+			return apiError(c, http.StatusNotFound, "not found", "")
 		}
 		h.Logger.Error("get blob failed", zap.String("request_id", reqID), zap.Error(err))
-		return c.NoContent(http.StatusInternalServerError)
+		return apiError(c, http.StatusInternalServerError, "internal server error", "")
 	}
 	defer rc.Close()
 
@@ -103,7 +119,10 @@ func (h *Handler) SaveBlob(c echo.Context) error {
 	t, name := blobParams(c)
 
 	if !storage.ValidBlobTypes[t] {
-		return c.NoContent(http.StatusBadRequest)
+		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
+	}
+	if !isValidBlobName(name) {
+		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
 	defer c.Request().Body.Close()
@@ -111,10 +130,10 @@ func (h *Handler) SaveBlob(c echo.Context) error {
 	err := h.Backend.SaveBlob(ctx, t, name, c.Request().Body)
 	if err != nil {
 		if errors.Is(err, storage.ErrQuotaExceeded) {
-			return c.String(http.StatusInsufficientStorage, "quota exceeded")
+			return apiError(c, http.StatusInsufficientStorage, "quota exceeded", "storage quota has been exceeded")
 		}
 		h.Logger.Error("save blob failed", zap.String("request_id", reqID), zap.Error(err))
-		return c.NoContent(http.StatusInternalServerError)
+		return apiError(c, http.StatusInternalServerError, "internal server error", "")
 	}
 
 	return c.NoContent(http.StatusOK)
@@ -126,21 +145,24 @@ func (h *Handler) DeleteBlob(c echo.Context) error {
 	t, name := blobParams(c)
 
 	if !storage.ValidBlobTypes[t] {
-		return c.NoContent(http.StatusBadRequest)
+		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
+	}
+	if !isValidBlobName(name) {
+		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
 	// Append-only: forbid deletion except for locks
 	if h.AppendOnly && t != storage.BlobLocks {
-		return c.NoContent(http.StatusForbidden)
+		return apiError(c, http.StatusForbidden, "forbidden", "append-only mode: deletion is not allowed")
 	}
 
 	err := h.Backend.DeleteBlob(ctx, t, name)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
-			return c.NoContent(http.StatusNotFound)
+			return apiError(c, http.StatusNotFound, "not found", "")
 		}
 		h.Logger.Error("delete blob failed", zap.String("request_id", reqID), zap.Error(err))
-		return c.NoContent(http.StatusInternalServerError)
+		return apiError(c, http.StatusInternalServerError, "internal server error", "")
 	}
 
 	return c.NoContent(http.StatusOK)
