@@ -78,9 +78,9 @@ func TestErrorResponse_BlobNotFound(t *testing.T) {
 	backend := h.Backend.(*memory.Backend)
 	backend.CreateRepo(context.Background())
 
-	c, rec := newContext(http.MethodGet, "/data/nonexistent")
+	c, rec := newContext(http.MethodGet, "/data/abcdef0123456789abcdef0123456789")
 	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "nonexistent")
+	c.SetParamValues("data", "abcdef0123456789abcdef0123456789") // pragma: allowlist secret
 
 	err := h.GetBlob(c)
 	if err != nil {
@@ -102,9 +102,9 @@ func TestErrorResponse_BlobNotFound(t *testing.T) {
 
 func TestErrorResponse_AppendOnlyForbidden(t *testing.T) {
 	h := setupTestHandler(true)
-	c, rec := newContext(http.MethodDelete, "/data/somefile")
+	c, rec := newContext(http.MethodDelete, "/data/abcdef0123456789abcdef0123456789")
 	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "somefile")
+	c.SetParamValues("data", "abcdef0123456789abcdef0123456789") // pragma: allowlist secret
 
 	err := h.DeleteBlob(c)
 	if err != nil {
@@ -394,9 +394,9 @@ func TestErrorResponse_DeleteBlobNotFound(t *testing.T) {
 	backend := h.Backend.(*memory.Backend)
 	backend.CreateRepo(context.Background())
 
-	c, rec := newContext(http.MethodDelete, "/data/nonexistent")
+	c, rec := newContext(http.MethodDelete, "/data/abcdef0123456789abcdef0123456789")
 	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "nonexistent")
+	c.SetParamValues("data", "abcdef0123456789abcdef0123456789") // pragma: allowlist secret
 
 	err := h.DeleteBlob(c)
 	if err != nil {

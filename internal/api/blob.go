@@ -13,12 +13,30 @@ import (
 	"go.uber.org/zap"
 )
 
+// isValidBlobName checks that a blob name is a non-empty hex string.
+// Restic uses SHA-256 content-addressed storage, so all blob names are
+// hex-encoded hashes. This prevents path traversal via crafted blob names.
+func isValidBlobName(name string) bool {
+	if name == "" {
+		return false
+	}
+	for _, c := range name {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
+}
+
 func (h *Handler) HeadBlob(c echo.Context) error {
 	ctx := c.Request().Context()
 	t, name := blobParams(c)
 
 	if !storage.ValidBlobTypes[t] {
 		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
+	}
+	if !isValidBlobName(name) {
+		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
 	size, err := h.Backend.StatBlob(ctx, t, name)
@@ -41,6 +59,9 @@ func (h *Handler) GetBlob(c echo.Context) error {
 
 	if !storage.ValidBlobTypes[t] {
 		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
+	}
+	if !isValidBlobName(name) {
+		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
 	offset, length, rangeRequested := parseRange(c)
@@ -105,6 +126,9 @@ func (h *Handler) SaveBlob(c echo.Context) error {
 	if !storage.ValidBlobTypes[t] {
 		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
 	}
+	if !isValidBlobName(name) {
+		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
+	}
 
 	defer c.Request().Body.Close()
 
@@ -127,6 +151,9 @@ func (h *Handler) DeleteBlob(c echo.Context) error {
 
 	if !storage.ValidBlobTypes[t] {
 		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
+	}
+	if !isValidBlobName(name) {
+		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
 	// Append-only: forbid deletion except for locks
