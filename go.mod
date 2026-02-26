@@ -15,7 +15,7 @@ require (
 	github.com/studio-b12/gowebdav v0.12.0
 	github.com/testcontainers/testcontainers-go v0.40.0
 	go.uber.org/zap v1.27.1
-	golang.org/x/net v0.50.0
+	golang.org/x/net v0.51.0
 	gopkg.in/yaml.v3 v3.0.1
 	tailscale.com v1.94.2
 )
