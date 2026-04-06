@@ -325,6 +325,26 @@ acl:
 
 > **Note:** For global append-only mode without identity-based differentiation, you can alternatively set `append_only: true` at the top level. The ACL provides finer control per identity and path.
 
+## rDNS Trust Model and Security Considerations
+
+In **plain mode**, identity resolution relies on reverse DNS (PTR records), which is inherently unauthenticated. This has important security implications:
+
+**Key assumptions:**
+
+- rDNS responses are only as trustworthy as the DNS infrastructure between the server and the authoritative nameserver for the reverse zone
+- PTR records for a given IP are controlled by the owner of that IP range, not the domain owner — an attacker controlling their own IP's PTR record can set it to any hostname
+- DNS queries (port 53/UDP) are unencrypted and can be intercepted or manipulated on shared networks
+- Cached results (default TTL: 600s) amplify the window of any successful spoofing attack
+
+**Recommendations for production deployments:**
+
+1. **Prefer Tailscale mode** for strong identity assurance (cryptographic verification via WhoIs API)
+2. **Use IP-based ACL rules** when possible — these are immune to DNS manipulation
+3. **Run a local encrypted DNS resolver** (e.g., `unbound` with DoT) and point `dns_server` to it
+4. **Reduce `rdns_cache_ttl`** in sensitive environments to limit exposure windows
+
+For a detailed threat analysis including attack scenarios and a DoT/DoH feasibility assessment, see [docs/security-rdns-spoofing.md](security-rdns-spoofing.md).
+
 ## Error Response on Access Denial
 
 When a request is denied by the ACL, the server responds with `403 Forbidden` and a JSON body containing the requester's identity. This allows the client to understand why access was refused.
