@@ -37,7 +37,7 @@ func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, a
 	if identityMW != nil {
 		e.Use(identityMW)
 	}
-	e.Use(middleware.ACL(aclEngine, logger, verboseDenials))
+	e.Use(middleware.ACL(aclEngine, logger, verboseDenials, metricsCfg.ACLEnabled))
 	if metricsCfg.Enabled && metrics.Registry != nil {
 		e.Use(middleware.Metrics())
 	}

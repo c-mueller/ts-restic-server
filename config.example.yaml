@@ -14,6 +14,7 @@ metrics:
   enabled: true
   password: ""              # if set, /-/metrics requires Basic Auth (user: prometheus)
   per_host_enabled: true    # enable per-identity/per-repo-path metrics (may cause high cardinality on large networks)
+  acl_enabled: false        # when true, /-/metrics passes through ACL instead of its own Basic Auth
 
 stats:
   enabled: false             # enable per-repository traffic statistics (SQLite)

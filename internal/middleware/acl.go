@@ -14,15 +14,25 @@ import (
 
 // ACL returns middleware that checks requests against the ACL engine.
 // If engine is nil, all requests are passed through (no-op).
-// When verboseDenials is true, denial responses include identity details;
-// when false, only a minimal error with request_id is returned.
+// System routes (/-/) bypass ACL by default. When metricsACLEnabled is
+// true, the /-/metrics endpoint is subject to ACL rules instead of its
+// own Basic Auth. When verboseDenials is true, denial responses include
+// identity details; when false, only a minimal error with request_id.
 // Server-side logging always includes full identity regardless.
-func ACL(engine *acl.Engine, logger *zap.Logger, verboseDenials bool) echo.MiddlewareFunc {
+func ACL(engine *acl.Engine, logger *zap.Logger, verboseDenials, metricsACLEnabled bool) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		if engine == nil {
 			return next
 		}
 		return func(c echo.Context) error {
+			// System routes bypass ACL unless explicitly opted in.
+			reqPath := c.Request().URL.Path
+			if strings.HasPrefix(reqPath, "/-/") {
+				if !(metricsACLEnabled && strings.HasPrefix(reqPath, "/-/metrics")) {
+					return next(c)
+				}
+			}
+
 			identities := GetIdentity(c.Request().Context())
 			if len(identities) == 0 {
 				identities = []string{c.RealIP()}

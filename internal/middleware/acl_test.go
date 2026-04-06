@@ -52,7 +52,7 @@ func TestACLMiddleware_NilIdentity_FallsBackToRealIP(t *testing.T) {
 	engine := newTestACLEngine("10.0.0.1")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger, true)
+	mw := ACL(engine, logger, true, false)
 	c, rec := setupACLTest(false, nil)
 
 	called := false
@@ -79,7 +79,7 @@ func TestACLMiddleware_EmptyIdentitySlice_FallsBackToRealIP(t *testing.T) {
 	engine := newTestACLEngine("10.0.0.1")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger, true)
+	mw := ACL(engine, logger, true, false)
 	c, rec := setupACLTest(true, []string{})
 
 	called := false
@@ -106,7 +106,7 @@ func TestACLMiddleware_WithIdentity_UsesProvidedIdentity(t *testing.T) {
 	engine := newTestACLEngine("host.example.com")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger, true)
+	mw := ACL(engine, logger, true, false)
 	c, rec := setupACLTest(true, []string{"host.example.com"})
 
 	called := false
@@ -133,7 +133,7 @@ func TestACLMiddleware_WithIdentity_DeniesUnknownIdentity(t *testing.T) {
 	engine := newTestACLEngine("allowed.example.com")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger, true)
+	mw := ACL(engine, logger, true, false)
 	c, rec := setupACLTest(true, []string{"unknown.example.com"})
 
 	called := false
@@ -158,7 +158,7 @@ func TestACLMiddleware_NilEngine_PassesThrough(t *testing.T) {
 	// nil engine → no-op middleware, all requests pass through
 	logger := zap.NewNop()
 
-	mw := ACL(nil, logger, true)
+	mw := ACL(nil, logger, true, false)
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/config", nil)
 	rec := httptest.NewRecorder()
@@ -183,7 +183,7 @@ func TestACLMiddleware_VerboseDenial_IncludesDetails(t *testing.T) {
 	engine := newTestACLEngine("allowed.example.com")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger, true) // verbose
+	mw := ACL(engine, logger, true, false) // verbose
 	c, rec := setupACLTest(true, []string{"unknown.example.com"})
 
 	handler := mw(func(c echo.Context) error {
@@ -208,7 +208,7 @@ func TestACLMiddleware_MinimalDenial_OmitsDetails(t *testing.T) {
 	engine := newTestACLEngine("allowed.example.com")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger, false) // minimal
+	mw := ACL(engine, logger, false, false) // minimal
 	c, rec := setupACLTest(true, []string{"unknown.example.com"})
 
 	handler := mw(func(c echo.Context) error {
