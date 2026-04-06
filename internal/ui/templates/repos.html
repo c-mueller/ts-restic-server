@@ -1,0 +1,42 @@
+{{define "title"}}Repositories{{end}}
+
+{{define "content"}}
+<h2 class="mb-4">Repositories</h2>
+
+{{if .Stats}}
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Repository</th>
+                <th class="text-end">Written</th>
+                <th class="text-end">Read</th>
+                <th class="text-end">Deleted</th>
+                <th class="text-end">Writes</th>
+                <th class="text-end">Reads</th>
+                <th class="text-end">Deletes</th>
+                <th>Last Access</th>
+                <th>Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Stats}}
+            <tr>
+                <td><a href="/-/ui/repos/{{.RepoPath}}/">{{.RepoPath}}</a></td>
+                <td class="text-end">{{.BytesWritten | fmtBytes}}</td>
+                <td class="text-end">{{.BytesRead | fmtBytes}}</td>
+                <td class="text-end">{{.BytesDeleted | fmtBytes}}</td>
+                <td class="text-end">{{.WriteCount}}</td>
+                <td class="text-end">{{.ReadCount}}</td>
+                <td class="text-end">{{.DeleteCount}}</td>
+                <td>{{.LastAccess | fmtTime}}</td>
+                <td>{{.CreatedAt | fmtTime}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{else}}
+<div class="alert alert-info">No repository statistics recorded yet. Statistics are collected when clients interact with the server.</div>
+{{end}}
+{{end}}

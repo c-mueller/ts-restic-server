@@ -25,6 +25,7 @@ import (
 	smbbackend "github.com/c-mueller/ts-restic-server/internal/storage/smb"
 	"github.com/c-mueller/ts-restic-server/internal/storage/tracked"
 	webdavbackend "github.com/c-mueller/ts-restic-server/internal/storage/webdav"
+	"github.com/c-mueller/ts-restic-server/internal/ui"
 	"github.com/labstack/echo/v4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -130,6 +131,14 @@ func runServe(cmd *cobra.Command, args []string) error {
 	identityMW := buildIdentityMiddleware(cfg, logger, tsServer)
 
 	srv := server.New(cfg, backend, logger, aclEngine, ipExtractor, identityMW, tsServer)
+
+	if cfg.UI.Enabled {
+		if err := ui.RegisterRoutes(srv.Echo(), statsStore, cfg.UI.Auth.Username, cfg.UI.Auth.Password); err != nil {
+			logger.Warn("failed to initialize web UI", zap.Error(err))
+		} else {
+			logger.Info("web UI enabled at /-/ui/")
+		}
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

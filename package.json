@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "description": "Frontend asset management for ts-restic-server Web UI",
+  "scripts": {
+    "build:ui": "node scripts/copy-assets.js"
+  },
+  "devDependencies": {
+    "bootstrap": "^5.3.8",
+    "bootswatch": "^5.3.3"
+  }
+}

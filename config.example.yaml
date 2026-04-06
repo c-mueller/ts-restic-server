@@ -17,6 +17,12 @@ stats:
   enabled: false             # enable per-repository traffic statistics (SQLite)
   db_path: ./stats.db        # path to SQLite database file
 
+ui:
+  enabled: false             # enable web UI at /-/ui/
+  auth:                      # optional Basic Auth protection
+    username: ""             # leave empty to disable auth
+    password: ""
+
 # Environment variable substitution: use ${VAR_NAME} in any string value.
 # By default, missing variables cause a startup error.
 # Use --env-lenient to allow unresolved placeholders.

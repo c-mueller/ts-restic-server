@@ -1,0 +1,70 @@
+{{define "title"}}{{.Repo.RepoPath}}{{end}}
+
+{{define "content"}}
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/-/ui/repos/">Repositories</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{.Repo.RepoPath}}</li>
+    </ol>
+</nav>
+
+<h2 class="mb-4">{{.Repo.RepoPath}}</h2>
+
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card bg-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Bytes Written</h6>
+                <p class="display-6">{{.Repo.BytesWritten | fmtBytes}}</p>
+                <small class="text-muted">{{.Repo.WriteCount}} operations</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card bg-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Bytes Read</h6>
+                <p class="display-6">{{.Repo.BytesRead | fmtBytes}}</p>
+                <small class="text-muted">{{.Repo.ReadCount}} operations</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card bg-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Bytes Deleted</h6>
+                <p class="display-6">{{.Repo.BytesDeleted | fmtBytes}}</p>
+                <small class="text-muted">{{.Repo.DeleteCount}} operations</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card bg-dark mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Details</h5>
+                <table class="table table-sm mb-0">
+                    <tr><td class="text-muted">Repository</td><td>{{.Repo.RepoPath}}</td></tr>
+                    <tr><td class="text-muted">Created</td><td>{{.Repo.CreatedAt | fmtTime}}</td></tr>
+                    <tr><td class="text-muted">Last Access</td><td>{{.Repo.LastAccess | fmtTime}}</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-dark mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Traffic Summary</h5>
+                <table class="table table-sm mb-0">
+                    <tr><td class="text-muted">Total Ingress</td><td>{{.Repo.BytesWritten | fmtBytes}}</td></tr>
+                    <tr><td class="text-muted">Total Egress</td><td>{{.Repo.BytesRead | fmtBytes}}</td></tr>
+                    <tr><td class="text-muted">Total Deleted</td><td>{{.Repo.BytesDeleted | fmtBytes}}</td></tr>
+                    <tr><td class="text-muted">Total Operations</td><td>{{.TotalOps}}</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}

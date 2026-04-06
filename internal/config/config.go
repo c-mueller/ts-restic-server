@@ -22,6 +22,7 @@ type Config struct {
 	ACL             *ACLConfig    `mapstructure:"acl"`
 	Metrics         MetricsConfig `mapstructure:"metrics"`
 	Stats           StatsConfig   `mapstructure:"stats"`
+	UI              UIConfig      `mapstructure:"ui"`
 }
 
 type StatsConfig struct {
@@ -31,6 +32,16 @@ type StatsConfig struct {
 
 type MetricsConfig struct {
 	Enabled  bool   `mapstructure:"enabled"`
+	Password string `mapstructure:"password"`
+}
+
+type UIConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	Auth    UIAuth `mapstructure:"auth"`
+}
+
+type UIAuth struct {
+	Username string `mapstructure:"username"`
 	Password string `mapstructure:"password"`
 }
 
@@ -117,6 +128,7 @@ func SetDefaults() {
 	viper.SetDefault("metrics.password", "")
 	viper.SetDefault("stats.enabled", false)
 	viper.SetDefault("stats.db_path", "./stats.db")
+	viper.SetDefault("ui.enabled", false)
 }
 
 func Load(envLenient bool) (*Config, error) {

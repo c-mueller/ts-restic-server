@@ -57,6 +57,9 @@ See `docs/docker.md` for Compose setup.
 - `internal/storage/rclone/` — Rclone backend (HTTP client proxying to restic REST server)
 - `internal/storage/smb/` — SMB/CIFS backend (go-smb2, pure Go, no OS mount)
 - `internal/storage/instrumented/` — Prometheus-instrumented backend wrapper (latency, bytes, errors)
+- `internal/storage/tracked/` — Stats-tracking backend wrapper (per-repo bytes/ops to SQLite)
+- `internal/stats/` — SQLite-backed per-repository statistics store (WAL mode, concurrent-safe)
+- `internal/ui/` — Web UI: server-side rendered dashboard, repo list, repo detail (Bootswatch darkly, embedded assets)
 - `tests/integration/` — Integration tests (full restic lifecycle per backend)
 - `docs/` — Documentation (Docker setup, testing, ACL)
 - `.github/workflows/docker.yml` — Docker build + push (multi-arch, ghcr.io)
@@ -86,6 +89,8 @@ See `config.example.yaml` for all options.
 - **Metrics**: Prometheus endpoint at /-/metrics, optional Basic Auth, instrumented storage wrapper
 - **Security headers**: X-Content-Type-Options, X-Frame-Options, etc. on all responses
 - **Env var substitution**: `${VAR_NAME}` placeholders in config values, `--env-lenient` for optional vars
+- **Statistics**: SQLite-backed per-repo traffic stats (bytes/ops), tracked storage wrapper, WAL mode
+- **Web UI**: Server-side rendered at `/-/ui/`, Bootswatch darkly theme, all assets embedded via `//go:embed`
 
 ## Testing
 

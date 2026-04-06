@@ -25,3 +25,9 @@ ts-state/
 
 # Coverage output
 *.out
+
+# Node.js (UI build tooling)
+node_modules/
+
+# Stats database
+stats.db

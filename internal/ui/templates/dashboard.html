@@ -1,0 +1,87 @@
+{{define "title"}}Dashboard{{end}}
+
+{{define "content"}}
+<h2 class="mb-4">Dashboard</h2>
+
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card stat-card bg-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Repositories</h6>
+                <p class="display-6">{{.RepoCount}}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stat-card bg-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Total Written</h6>
+                <p class="display-6">{{.Summary.BytesWritten | fmtBytes}}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stat-card bg-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Total Read</h6>
+                <p class="display-6">{{.Summary.BytesRead | fmtBytes}}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4 mb-3">
+        <div class="card stat-card bg-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Total Deleted</h6>
+                <p class="display-6">{{.Summary.BytesDeleted | fmtBytes}}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stat-card bg-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Write Operations</h6>
+                <p class="display-6">{{.Summary.WriteCount}}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stat-card bg-dark">
+            <div class="card-body text-center">
+                <h6 class="card-subtitle mb-2 text-muted">Read Operations</h6>
+                <p class="display-6">{{.Summary.ReadCount}}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{if .Stats}}
+<h4 class="mb-3">Recent Repositories</h4>
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Repository</th>
+                <th class="text-end">Written</th>
+                <th class="text-end">Read</th>
+                <th>Last Access</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Stats}}
+            <tr>
+                <td><a href="/-/ui/repos/{{.RepoPath}}/">{{.RepoPath}}</a></td>
+                <td class="text-end">{{.BytesWritten | fmtBytes}}</td>
+                <td class="text-end">{{.BytesRead | fmtBytes}}</td>
+                <td>{{.LastAccess | fmtTime}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{else}}
+<div class="alert alert-info">No repository statistics recorded yet. Statistics are collected when clients interact with the server.</div>
+{{end}}
+{{end}}

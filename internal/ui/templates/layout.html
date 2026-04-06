@@ -1,0 +1,38 @@
+{{define "layout"}}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{template "title" .}} - ts-restic-server</title>
+    <link rel="stylesheet" href="/-/ui/static/css/bootstrap.min.css">
+    <style>
+        .stat-card .display-6 { font-weight: 600; }
+        .table td, .table th { vertical-align: middle; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="/-/ui/">ts-restic-server</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav" aria-controls="nav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="nav">
+                <ul class="navbar-nav">
+                    <li class="nav-item"><a class="nav-link{{if eq .Active "dashboard"}} active{{end}}" href="/-/ui/">Dashboard</a></li>
+                    <li class="nav-item"><a class="nav-link{{if eq .Active "repos"}} active{{end}}" href="/-/ui/repos/">Repositories</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <div class="container">
+        {{template "content" .}}
+    </div>
+    <footer class="container mt-5 mb-3 text-muted text-center">
+        <small>ts-restic-server</small>
+    </footer>
+    <script src="/-/ui/static/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+{{end}}
