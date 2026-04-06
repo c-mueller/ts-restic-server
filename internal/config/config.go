@@ -11,18 +11,19 @@ import (
 )
 
 type Config struct {
-	Listen          string        `mapstructure:"listen"`
-	ListenMode      string        `mapstructure:"listen_mode"`
-	AppendOnly      bool          `mapstructure:"append_only"`
-	LogLevel        string        `mapstructure:"log_level"`
-	ShutdownTimeout int           `mapstructure:"shutdown_timeout"`
-	Tailscale       Tailscale     `mapstructure:"tailscale"`
-	Storage         Storage       `mapstructure:"storage"`
-	ACLFile         string        `mapstructure:"acl_file"`
-	ACL             *ACLConfig    `mapstructure:"acl"`
-	Metrics         MetricsConfig `mapstructure:"metrics"`
-	Stats           StatsConfig   `mapstructure:"stats"`
-	UI              UIConfig      `mapstructure:"ui"`
+	Listen             string        `mapstructure:"listen"`
+	ListenMode         string        `mapstructure:"listen_mode"`
+	AppendOnly         bool          `mapstructure:"append_only"`
+	LogLevel           string        `mapstructure:"log_level"`
+	ShutdownTimeout    int           `mapstructure:"shutdown_timeout"`
+	Tailscale          Tailscale     `mapstructure:"tailscale"`
+	Storage            Storage       `mapstructure:"storage"`
+	ACLFile            string        `mapstructure:"acl_file"`
+	ACL                *ACLConfig    `mapstructure:"acl"`
+	MaxRequestBodySize string        `mapstructure:"max_request_body_size"`
+	Metrics            MetricsConfig `mapstructure:"metrics"`
+	Stats              StatsConfig   `mapstructure:"stats"`
+	UI                 UIConfig      `mapstructure:"ui"`
 }
 
 type StatsConfig struct {
@@ -121,6 +122,7 @@ func SetDefaults() {
 	viper.SetDefault("storage.max_memory_bytes", 104857600) // 100MB
 	viper.SetDefault("storage.data_sharding", true)
 	viper.SetDefault("shutdown_timeout", 30)
+	viper.SetDefault("max_request_body_size", "256MB")
 	viper.SetDefault("storage.smb.port", 445)
 	viper.SetDefault("storage.smb.domain", "WORKGROUP")
 	viper.SetDefault("acl.identity_cache_size", 1000)

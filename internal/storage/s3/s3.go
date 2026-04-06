@@ -18,6 +18,12 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/storage"
 )
 
+// defaultMaxBodySize is a defense-in-depth limit for io.ReadAll in SaveBlob
+// and SaveConfig. The primary limit is enforced by the HTTP body limit
+// middleware, but this prevents unbounded memory allocation if a backend
+// is used outside the HTTP path.
+const defaultMaxBodySize = 256 << 20 // 256 MB
+
 type Backend struct {
 	client *s3.Client
 	bucket string
@@ -133,9 +139,12 @@ func (b *Backend) GetConfig(ctx context.Context) (io.ReadCloser, error) {
 }
 
 func (b *Backend) SaveConfig(ctx context.Context, data io.Reader) error {
-	buf, err := io.ReadAll(data)
+	buf, err := io.ReadAll(io.LimitReader(data, defaultMaxBodySize+1))
 	if err != nil {
 		return err
+	}
+	if int64(len(buf)) > defaultMaxBodySize {
+		return fmt.Errorf("config body exceeds maximum size of %d bytes", defaultMaxBodySize)
 	}
 
 	_, err = b.client.PutObject(ctx, &s3.PutObjectInput{
@@ -190,9 +199,12 @@ func (b *Backend) GetBlob(ctx context.Context, t storage.BlobType, name string, 
 }
 
 func (b *Backend) SaveBlob(ctx context.Context, t storage.BlobType, name string, data io.Reader) error {
-	buf, err := io.ReadAll(data)
+	buf, err := io.ReadAll(io.LimitReader(data, defaultMaxBodySize+1))
 	if err != nil {
 		return err
+	}
+	if int64(len(buf)) > defaultMaxBodySize {
+		return fmt.Errorf("blob body exceeds maximum size of %d bytes", defaultMaxBodySize)
 	}
 
 	_, err = b.client.PutObject(ctx, &s3.PutObjectInput{

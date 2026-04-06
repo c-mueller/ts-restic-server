@@ -3,6 +3,7 @@ listen_mode: plain       # "plain" or "tailscale"
 append_only: false
 log_level: info
 shutdown_timeout: 30     # graceful shutdown timeout in seconds
+max_request_body_size: 256MB  # max HTTP request body size (Echo BodyLimit format: 1KB, 1MB, 1GB)
 
 tailscale:
   hostname: restic-server
