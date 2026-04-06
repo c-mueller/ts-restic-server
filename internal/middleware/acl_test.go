@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/c-mueller/ts-restic-server/internal/acl"
@@ -51,7 +52,7 @@ func TestACLMiddleware_NilIdentity_FallsBackToRealIP(t *testing.T) {
 	engine := newTestACLEngine("10.0.0.1")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger)
+	mw := ACL(engine, logger, true)
 	c, rec := setupACLTest(false, nil)
 
 	called := false
@@ -78,7 +79,7 @@ func TestACLMiddleware_EmptyIdentitySlice_FallsBackToRealIP(t *testing.T) {
 	engine := newTestACLEngine("10.0.0.1")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger)
+	mw := ACL(engine, logger, true)
 	c, rec := setupACLTest(true, []string{})
 
 	called := false
@@ -105,7 +106,7 @@ func TestACLMiddleware_WithIdentity_UsesProvidedIdentity(t *testing.T) {
 	engine := newTestACLEngine("host.example.com")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger)
+	mw := ACL(engine, logger, true)
 	c, rec := setupACLTest(true, []string{"host.example.com"})
 
 	called := false
@@ -132,7 +133,7 @@ func TestACLMiddleware_WithIdentity_DeniesUnknownIdentity(t *testing.T) {
 	engine := newTestACLEngine("allowed.example.com")
 	logger := zap.NewNop()
 
-	mw := ACL(engine, logger)
+	mw := ACL(engine, logger, true)
 	c, rec := setupACLTest(true, []string{"unknown.example.com"})
 
 	called := false
@@ -157,7 +158,7 @@ func TestACLMiddleware_NilEngine_PassesThrough(t *testing.T) {
 	// nil engine → no-op middleware, all requests pass through
 	logger := zap.NewNop()
 
-	mw := ACL(nil, logger)
+	mw := ACL(nil, logger, true)
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/config", nil)
 	rec := httptest.NewRecorder()
@@ -175,5 +176,59 @@ func TestACLMiddleware_NilEngine_PassesThrough(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("handler was not called; nil engine should pass through")
+	}
+}
+
+func TestACLMiddleware_VerboseDenial_IncludesDetails(t *testing.T) {
+	engine := newTestACLEngine("allowed.example.com")
+	logger := zap.NewNop()
+
+	mw := ACL(engine, logger, true) // verbose
+	c, rec := setupACLTest(true, []string{"unknown.example.com"})
+
+	handler := mw(func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	if err := handler(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	// Verbose response should include path and operation details
+	if !strings.Contains(body, "path") || !strings.Contains(body, "operation") {
+		t.Errorf("verbose denial should include path and operation, got: %s", body)
+	}
+}
+
+func TestACLMiddleware_MinimalDenial_OmitsDetails(t *testing.T) {
+	engine := newTestACLEngine("allowed.example.com")
+	logger := zap.NewNop()
+
+	mw := ACL(engine, logger, false) // minimal
+	c, rec := setupACLTest(true, []string{"unknown.example.com"})
+
+	handler := mw(func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
+
+	if err := handler(c); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected status 403, got %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	// Minimal response should not include path, operation, or ip
+	if strings.Contains(body, "\"path\"") || strings.Contains(body, "\"operation\"") || strings.Contains(body, "\"ip\"") {
+		t.Errorf("minimal denial should not include path/operation/ip, got: %s", body)
+	}
+	// But should still include error and request_id
+	if !strings.Contains(body, "access denied") {
+		t.Errorf("minimal denial should include 'access denied', got: %s", body)
 	}
 }

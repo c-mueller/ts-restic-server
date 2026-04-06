@@ -52,6 +52,7 @@ type ACLConfig struct {
 	DNSServer         string    `mapstructure:"dns_server" yaml:"dns_server"`
 	RDNSCacheTTL      int       `mapstructure:"rdns_cache_ttl" yaml:"rdns_cache_ttl"`
 	IdentityCacheSize int       `mapstructure:"identity_cache_size" yaml:"identity_cache_size"`
+	VerboseDenials    bool      `mapstructure:"verbose_denials" yaml:"verbose_denials"`
 	Rules             []ACLRule `mapstructure:"rules" yaml:"rules"`
 }
 
@@ -126,6 +127,7 @@ func SetDefaults() {
 	viper.SetDefault("storage.smb.port", 445)
 	viper.SetDefault("storage.smb.domain", "WORKGROUP")
 	viper.SetDefault("acl.identity_cache_size", 1000)
+	viper.SetDefault("acl.verbose_denials", true)
 	viper.SetDefault("metrics.enabled", true)
 	viper.SetDefault("metrics.password", "")
 	viper.SetDefault("stats.enabled", false)

@@ -37,7 +37,11 @@ func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEng
 		return middleware.GetRequestID(c.Request().Context())
 	})
 
-	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine, identityMW, cfg.ListenMode == "tailscale", cfg.Metrics, cfg.MaxRequestBodySize)
+	verboseDenials := true
+	if cfg.ACL != nil {
+		verboseDenials = cfg.ACL.VerboseDenials
+	}
+	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine, identityMW, cfg.ListenMode == "tailscale", cfg.Metrics, cfg.MaxRequestBodySize, verboseDenials)
 
 	return &Server{
 		cfg:      cfg,

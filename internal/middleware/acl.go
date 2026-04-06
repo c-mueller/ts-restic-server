@@ -14,7 +14,10 @@ import (
 
 // ACL returns middleware that checks requests against the ACL engine.
 // If engine is nil, all requests are passed through (no-op).
-func ACL(engine *acl.Engine, logger *zap.Logger) echo.MiddlewareFunc {
+// When verboseDenials is true, denial responses include identity details;
+// when false, only a minimal error with request_id is returned.
+// Server-side logging always includes full identity regardless.
+func ACL(engine *acl.Engine, logger *zap.Logger, verboseDenials bool) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		if engine == nil {
 			return next
@@ -48,7 +51,7 @@ func ACL(engine *acl.Engine, logger *zap.Logger) echo.MiddlewareFunc {
 					zap.String("method", c.Request().Method),
 					zap.String("path", c.Request().URL.Path),
 				)
-				return aclDeniedResponse(c, repoPath, op)
+				return aclDeniedResponse(c, repoPath, op, verboseDenials)
 			}
 			return next(c)
 		}
@@ -56,7 +59,12 @@ func ACL(engine *acl.Engine, logger *zap.Logger) echo.MiddlewareFunc {
 }
 
 // aclDeniedResponse constructs a standardized JSON error response for ACL denials.
-func aclDeniedResponse(c echo.Context, repoPath string, op acl.OperationType) error {
+// When verbose is false, only a minimal response with request_id is returned.
+func aclDeniedResponse(c echo.Context, repoPath string, op acl.OperationType, verbose bool) error {
+	if !verbose {
+		return apierror.WithData(c, http.StatusForbidden, "access denied", "", GetRequestID(c.Request().Context()), nil)
+	}
+
 	data := map[string]interface{}{
 		"path":      repoPath,
 		"operation": opName(op),

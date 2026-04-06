@@ -163,6 +163,7 @@ acl:
 | `default_role` | string | (required) | `deny`, `read-only`, `append-only`, or `full-access` |
 | `dns_server` | string | `""` | Custom DNS server in `host:port` format. Empty = system DNS. In Tailscale mode, WhoIs is used (fallback: MagicDNS `100.100.100.100:53`). |
 | `rdns_cache_ttl` | int | `600` | TTL for identity cache in seconds |
+| `verbose_denials` | bool | `true` | Include identity details (path, operation, IP, hostname, user, tags) in denial response. Set to `false` for minimal response with only `error` and `request_id`. Server-side logging always includes full details regardless. |
 | `trusted_proxies` | []string | `[]` | CIDR notations of trusted proxies for `X-Forwarded-For` |
 | `rules` | []Rule | `[]` | List of ACL rules |
 
@@ -347,7 +348,11 @@ For a detailed threat analysis including attack scenarios and a DoT/DoH feasibil
 
 ## Error Response on Access Denial
 
-When a request is denied by the ACL, the server responds with `403 Forbidden` and a JSON body containing the requester's identity. This allows the client to understand why access was refused.
+When a request is denied by the ACL, the server responds with `403 Forbidden` and a JSON body. The response detail level is controlled by `verbose_denials` (default: `true`).
+
+### Verbose mode (`verbose_denials: true`, default)
+
+Includes identity details for troubleshooting:
 
 **Tailscale mode** (with WhoIs resolution):
 
@@ -371,6 +376,19 @@ When a request is denied by the ACL, the server responds with `403 Forbidden` an
   "path": "/server-a",
   "operation": "write",
   "ip": "10.0.0.5"
+}
+
+```
+
+### Minimal mode (`verbose_denials: false`)
+
+Returns only the error message and request ID for log correlation:
+
+```json
+{
+  "status": 403,
+  "error": "access denied",
+  "request_id": "abc123..."
 }
 ```
 

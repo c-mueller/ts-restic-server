@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, appendOnly bool, aclEngine *acl.Engine, identityMW echo.MiddlewareFunc, tlsEnabled bool, metricsCfg config.MetricsConfig, maxRequestBodySize string) {
+func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, appendOnly bool, aclEngine *acl.Engine, identityMW echo.MiddlewareFunc, tlsEnabled bool, metricsCfg config.MetricsConfig, maxRequestBodySize string, verboseDenials bool) {
 	h := &Handler{
 		Backend:    backend,
 		Logger:     logger,
@@ -37,7 +37,7 @@ func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, a
 	if identityMW != nil {
 		e.Use(identityMW)
 	}
-	e.Use(middleware.ACL(aclEngine, logger))
+	e.Use(middleware.ACL(aclEngine, logger, verboseDenials))
 	if metricsCfg.Enabled && metrics.Registry != nil {
 		e.Use(middleware.Metrics())
 	}
