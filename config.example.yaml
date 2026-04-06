@@ -13,6 +13,10 @@ metrics:
   enabled: true
   password: ""              # if set, /-/metrics requires Basic Auth (user: prometheus)
 
+stats:
+  enabled: false             # enable per-repository traffic statistics (SQLite)
+  db_path: ./stats.db        # path to SQLite database file
+
 # Environment variable substitution: use ${VAR_NAME} in any string value.
 # By default, missing variables cause a startup error.
 # Use --env-lenient to allow unresolved placeholders.

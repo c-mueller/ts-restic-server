@@ -21,6 +21,12 @@ type Config struct {
 	ACLFile         string        `mapstructure:"acl_file"`
 	ACL             *ACLConfig    `mapstructure:"acl"`
 	Metrics         MetricsConfig `mapstructure:"metrics"`
+	Stats           StatsConfig   `mapstructure:"stats"`
+}
+
+type StatsConfig struct {
+	Enabled bool   `mapstructure:"enabled"`
+	DBPath  string `mapstructure:"db_path"`
 }
 
 type MetricsConfig struct {
@@ -109,6 +115,8 @@ func SetDefaults() {
 	viper.SetDefault("acl.identity_cache_size", 1000)
 	viper.SetDefault("metrics.enabled", true)
 	viper.SetDefault("metrics.password", "")
+	viper.SetDefault("stats.enabled", false)
+	viper.SetDefault("stats.db_path", "./stats.db")
 }
 
 func Load(envLenient bool) (*Config, error) {

@@ -15,6 +15,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/metrics"
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/server"
+	"github.com/c-mueller/ts-restic-server/internal/stats"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/c-mueller/ts-restic-server/internal/storage/filesystem"
 	"github.com/c-mueller/ts-restic-server/internal/storage/instrumented"
@@ -22,6 +23,7 @@ import (
 	rclonebackend "github.com/c-mueller/ts-restic-server/internal/storage/rclone"
 	s3backend "github.com/c-mueller/ts-restic-server/internal/storage/s3"
 	smbbackend "github.com/c-mueller/ts-restic-server/internal/storage/smb"
+	"github.com/c-mueller/ts-restic-server/internal/storage/tracked"
 	webdavbackend "github.com/c-mueller/ts-restic-server/internal/storage/webdav"
 	"github.com/labstack/echo/v4"
 	"github.com/spf13/cobra"
@@ -101,6 +103,18 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	if cfg.Metrics.Enabled {
 		backend = instrumented.New(backend, cfg.Storage.Backend)
+	}
+
+	var statsStore *stats.Store
+	if cfg.Stats.Enabled {
+		statsStore, err = stats.New(cfg.Stats.DBPath)
+		if err != nil {
+			logger.Warn("failed to open stats database, stats disabled", zap.Error(err))
+		} else {
+			defer statsStore.Close()
+			backend = tracked.New(backend, statsStore)
+			logger.Info("stats tracking enabled", zap.String("db_path", cfg.Stats.DBPath))
+		}
 	}
 
 	aclEngine, err := buildACLEngine(cfg.ACL)
