@@ -13,6 +13,7 @@ tailscale:
 metrics:
   enabled: true
   password: ""              # if set, /-/metrics requires Basic Auth (user: prometheus)
+  per_host_enabled: true    # enable per-identity/per-repo-path metrics (may cause high cardinality on large networks)
 
 stats:
   enabled: false             # enable per-repository traffic statistics (SQLite)

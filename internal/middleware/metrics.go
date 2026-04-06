@@ -30,20 +30,22 @@ func Metrics() echo.MiddlewareFunc {
 				metrics.HTTPErrorsTotal.WithLabelValues(method, path, statusStr).Inc()
 			}
 
-			// Per-host metrics
-			identities := GetIdentity(c.Request().Context())
-			identity := c.RealIP()
-			if len(identities) > 0 {
-				identity = identities[0]
-			}
-			repoPath := "/" + GetRepoPrefix(c.Request().Context())
+			// Per-host metrics (only when enabled to avoid unbounded cardinality)
+			if metrics.PerHostEnabled {
+				identities := GetIdentity(c.Request().Context())
+				identity := c.RealIP()
+				if len(identities) > 0 {
+					identity = identities[0]
+				}
+				repoPath := "/" + GetRepoPrefix(c.Request().Context())
 
-			metrics.HostRequestsTotal.WithLabelValues(identity, repoPath, method).Inc()
+				metrics.HostRequestsTotal.WithLabelValues(identity, repoPath, method).Inc()
 
-			if c.Request().ContentLength > 0 {
-				metrics.HostBytesReceivedTotal.WithLabelValues(identity, repoPath).Add(float64(c.Request().ContentLength))
+				if c.Request().ContentLength > 0 {
+					metrics.HostBytesReceivedTotal.WithLabelValues(identity, repoPath).Add(float64(c.Request().ContentLength))
+				}
+				metrics.HostBytesSentTotal.WithLabelValues(identity, repoPath).Add(float64(c.Response().Size))
 			}
-			metrics.HostBytesSentTotal.WithLabelValues(identity, repoPath).Add(float64(c.Response().Size))
 
 			return err
 		}

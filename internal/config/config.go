@@ -32,8 +32,9 @@ type StatsConfig struct {
 }
 
 type MetricsConfig struct {
-	Enabled  bool   `mapstructure:"enabled"`
-	Password string `mapstructure:"password"`
+	Enabled        bool   `mapstructure:"enabled"`
+	Password       string `mapstructure:"password"`
+	PerHostEnabled bool   `mapstructure:"per_host_enabled"`
 }
 
 type UIConfig struct {
@@ -130,6 +131,7 @@ func SetDefaults() {
 	viper.SetDefault("acl.verbose_denials", true)
 	viper.SetDefault("metrics.enabled", true)
 	viper.SetDefault("metrics.password", "")
+	viper.SetDefault("metrics.per_host_enabled", true)
 	viper.SetDefault("stats.enabled", false)
 	viper.SetDefault("stats.db_path", "./stats.db")
 	viper.SetDefault("ui.enabled", false)

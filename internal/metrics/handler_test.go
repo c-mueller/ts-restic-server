@@ -11,7 +11,7 @@ import (
 
 func init() {
 	// Initialize the registry so Handler can serve metrics.
-	Init("memory")
+	Init("memory", true)
 }
 
 func TestHandler_NoPassword(t *testing.T) {

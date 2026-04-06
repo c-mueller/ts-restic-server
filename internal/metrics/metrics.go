@@ -29,8 +29,16 @@ var (
 	PanicsTotal prometheus.Counter
 )
 
+// PerHostEnabled indicates whether per-host metrics are registered and should be recorded.
+var PerHostEnabled bool
+
 // Init creates the custom registry and registers all metrics.
-func Init(backendName string) {
+// When perHostEnabled is true, per-identity/per-repo-path metrics
+// (HostRequestsTotal, HostBytesReceivedTotal, HostBytesSentTotal)
+// are registered. When false, they remain nil and the middleware
+// skips recording them, avoiding unbounded label cardinality.
+func Init(backendName string, perHostEnabled bool) {
+	PerHostEnabled = perHostEnabled
 	Registry = prometheus.NewRegistry()
 	Registry.MustRegister(collectors.NewGoCollector())
 	Registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
@@ -68,20 +76,22 @@ func Init(backendName string) {
 		Buckets: []float64{0.00001, 0.00005, 0.0001, 0.0005, 0.001, 0.005, 0.01},
 	}, []string{"result"})
 
-	HostRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "restic_server_host_requests_total",
-		Help: "Total number of requests per identity, repo path, and method.",
-	}, []string{"identity", "repo_path", "method"})
+	if perHostEnabled {
+		HostRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "restic_server_host_requests_total",
+			Help: "Total number of requests per identity, repo path, and method.",
+		}, []string{"identity", "repo_path", "method"})
 
-	HostBytesReceivedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "restic_server_host_bytes_received_total",
-		Help: "Total bytes received per identity and repo path.",
-	}, []string{"identity", "repo_path"})
+		HostBytesReceivedTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "restic_server_host_bytes_received_total",
+			Help: "Total bytes received per identity and repo path.",
+		}, []string{"identity", "repo_path"})
 
-	HostBytesSentTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "restic_server_host_bytes_sent_total",
-		Help: "Total bytes sent per identity and repo path.",
-	}, []string{"identity", "repo_path"})
+		HostBytesSentTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "restic_server_host_bytes_sent_total",
+			Help: "Total bytes sent per identity and repo path.",
+		}, []string{"identity", "repo_path"})
+	}
 
 	StorageOperationDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "restic_server_storage_operation_duration_seconds",
@@ -99,18 +109,19 @@ func Init(backendName string) {
 		Help: "Total number of recovered panics.",
 	})
 
-	Registry.MustRegister(
+	collectors := []prometheus.Collector{
 		BuildInfo,
 		HTTPRequestDuration,
 		HTTPRequestsTotal,
 		HTTPErrorsTotal,
 		ACLDecisionsTotal,
 		ACLEvaluationDuration,
-		HostRequestsTotal,
-		HostBytesReceivedTotal,
-		HostBytesSentTotal,
 		StorageOperationDuration,
 		StorageOperationsTotal,
 		PanicsTotal,
-	)
+	}
+	if perHostEnabled {
+		collectors = append(collectors, HostRequestsTotal, HostBytesReceivedTotal, HostBytesSentTotal)
+	}
+	Registry.MustRegister(collectors...)
 }

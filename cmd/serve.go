@@ -94,7 +94,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	if cfg.Metrics.Enabled {
-		metrics.Init(cfg.Storage.Backend)
+		metrics.Init(cfg.Storage.Backend, cfg.Metrics.PerHostEnabled)
 	}
 
 	backend, err := buildBackend(cfg)
