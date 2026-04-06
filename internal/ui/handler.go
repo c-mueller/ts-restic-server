@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -8,20 +11,23 @@ import (
 	"strings"
 	"time"
 
+	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/stats"
+	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/labstack/echo/v4"
 )
 
 // Handler serves the Web UI pages.
 type Handler struct {
-	store     *stats.Store
-	templates map[string]*template.Template
+	store   *stats.Store
+	backend storage.Backend
+	tmpls   map[string]*template.Template
 }
 
 // NewHandler creates a UI handler. If store is nil, pages show
-// a "stats not enabled" message.
-func NewHandler(store *stats.Store) (*Handler, error) {
-	h := &Handler{store: store}
+// a "stats not enabled" message. backend is required for lock operations.
+func NewHandler(store *stats.Store, backend storage.Backend) (*Handler, error) {
+	h := &Handler{store: store, backend: backend}
 	if err := h.loadTemplates(); err != nil {
 		return nil, fmt.Errorf("load templates: %w", err)
 	}
@@ -40,7 +46,7 @@ func (h *Handler) loadTemplates() error {
 	}
 	layout := string(layoutBytes)
 
-	h.templates = make(map[string]*template.Template)
+	h.tmpls = make(map[string]*template.Template)
 	pages := []string{"dashboard.html", "repos.html", "repo_detail.html"}
 	for _, page := range pages {
 		pageBytes, err := templateFS.ReadFile("templates/" + page)
@@ -51,19 +57,24 @@ func (h *Handler) loadTemplates() error {
 		if err != nil {
 			return fmt.Errorf("parse %s: %w", page, err)
 		}
-		h.templates[page] = tmpl
+		h.tmpls[page] = tmpl
 	}
 	return nil
 }
 
 func (h *Handler) render(c echo.Context, name string, data interface{}) error {
-	tmpl, ok := h.templates[name]
+	tmpl, ok := h.tmpls[name]
 	if !ok {
 		return echo.NewHTTPError(http.StatusInternalServerError, "template not found: "+name)
 	}
 	c.Response().Header().Set(echo.HeaderContentType, echo.MIMETextHTMLCharsetUTF8)
 	c.Response().WriteHeader(http.StatusOK)
 	return tmpl.ExecuteTemplate(c.Response(), "layout", data)
+}
+
+// repoCtx creates a context with the given repo prefix for backend operations.
+func repoCtx(repoPath string) context.Context {
+	return middleware.ContextWithRepoPrefix(context.Background(), repoPath)
 }
 
 // Dashboard shows aggregate stats.
@@ -88,31 +99,60 @@ func (h *Handler) Dashboard(c echo.Context) error {
 	return h.render(c, "dashboard.html", data)
 }
 
-// RepoList shows all repositories with stats.
+// repoWithLocks is used by the repos template to show lock counts.
+type repoWithLocks struct {
+	stats.RepoStats
+	LockCount int
+}
+
+// RepoList shows all repositories with stats and lock counts.
 func (h *Handler) RepoList(c echo.Context) error {
 	data := map[string]interface{}{
 		"Active": "repos",
-		"Stats":  []stats.RepoStats(nil),
+		"Stats":  []repoWithLocks(nil),
 	}
 
 	if h.store != nil {
 		if all, err := h.store.GetAllRepoStats(); err == nil {
-			data["Stats"] = all
+			repos := make([]repoWithLocks, len(all))
+			for i, rs := range all {
+				repos[i] = repoWithLocks{RepoStats: rs}
+				if h.backend != nil {
+					if locks, err := h.backend.ListBlobs(repoCtx(rs.RepoPath), storage.BlobLocks); err == nil {
+						repos[i].LockCount = len(locks)
+					}
+				}
+			}
+			data["Stats"] = repos
 		}
 	}
 
 	return h.render(c, "repos.html", data)
 }
 
-// RepoDetail shows stats for a single repository.
+// RepoDetail shows stats for a single repository including locks.
 func (h *Handler) RepoDetail(c echo.Context) error {
 	repoPath := c.Param("*")
 	repoPath = strings.TrimSuffix(repoPath, "/")
 
+	// Generate CSRF token for lock deletion forms.
+	csrfToken := generateCSRFToken()
+	c.SetCookie(&http.Cookie{
+		Name:     "csrf_token",
+		Value:    csrfToken,
+		Path:     "/-/ui/",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
 	data := map[string]interface{}{
-		"Active":   "repos",
-		"Repo":     &stats.RepoStats{RepoPath: repoPath},
-		"TotalOps": int64(0),
+		"Active":    "repos",
+		"Repo":      &stats.RepoStats{RepoPath: repoPath},
+		"TotalOps":  int64(0),
+		"Locks":     []storage.Blob(nil),
+		"CSRFToken": csrfToken,
+		"Flash":     c.QueryParam("msg"),
+		"FlashType": c.QueryParam("type"),
 	}
 
 	if h.store != nil {
@@ -122,13 +162,50 @@ func (h *Handler) RepoDetail(c echo.Context) error {
 		}
 	}
 
+	if h.backend != nil {
+		if locks, err := h.backend.ListBlobs(repoCtx(repoPath), storage.BlobLocks); err == nil {
+			data["Locks"] = locks
+		}
+	}
+
 	return h.render(c, "repo_detail.html", data)
+}
+
+// DeleteLock handles POST requests to delete a lock blob.
+func (h *Handler) DeleteLock(c echo.Context) error {
+	repoPath := c.Param("*")
+	repoPath = strings.TrimSuffix(repoPath, "/")
+	lockName := c.FormValue("lock_name")
+	formToken := c.FormValue("csrf_token")
+
+	redirectURL := fmt.Sprintf("/-/ui/repos/%s/", repoPath)
+
+	// Validate CSRF token.
+	cookie, err := c.Cookie("csrf_token")
+	if err != nil || cookie.Value == "" || cookie.Value != formToken {
+		return c.Redirect(http.StatusSeeOther, redirectURL+"?msg=Invalid+CSRF+token&type=danger")
+	}
+
+	if lockName == "" {
+		return c.Redirect(http.StatusSeeOther, redirectURL+"?msg=No+lock+specified&type=danger")
+	}
+
+	if h.backend == nil {
+		return c.Redirect(http.StatusSeeOther, redirectURL+"?msg=Backend+not+available&type=danger")
+	}
+
+	if err := h.backend.DeleteBlob(repoCtx(repoPath), storage.BlobLocks, lockName); err != nil {
+		msg := fmt.Sprintf("Failed+to+delete+lock:+%s", err.Error())
+		return c.Redirect(http.StatusSeeOther, redirectURL+"?msg="+msg+"&type=danger")
+	}
+
+	return c.Redirect(http.StatusSeeOther, redirectURL+"?msg=Lock+deleted+successfully&type=success")
 }
 
 // RegisterRoutes registers the UI routes on the Echo instance.
 // If auth is configured (non-empty username), Basic Auth is applied.
-func RegisterRoutes(e *echo.Echo, store *stats.Store, authUser, authPass string) error {
-	h, err := NewHandler(store)
+func RegisterRoutes(e *echo.Echo, store *stats.Store, backend storage.Backend, authUser, authPass string) error {
+	h, err := NewHandler(store, backend)
 	if err != nil {
 		return err
 	}
@@ -153,6 +230,7 @@ func RegisterRoutes(e *echo.Echo, store *stats.Store, authUser, authPass string)
 	})
 	uiGroup.GET("/repos/", h.RepoList)
 	uiGroup.GET("/repos/*", h.RepoDetail)
+	uiGroup.POST("/repos/*/delete-lock", h.DeleteLock)
 
 	return nil
 }
@@ -168,6 +246,12 @@ func basicAuth(username, password string) echo.MiddlewareFunc {
 			return next(c)
 		}
 	}
+}
+
+func generateCSRFToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 func formatBytes(b int64) string {

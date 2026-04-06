@@ -15,6 +15,7 @@
                 <th class="text-end">Writes</th>
                 <th class="text-end">Reads</th>
                 <th class="text-end">Deletes</th>
+                <th class="text-end">Locks</th>
                 <th>Last Access</th>
                 <th>Created</th>
             </tr>
@@ -29,6 +30,7 @@
                 <td class="text-end">{{.WriteCount}}</td>
                 <td class="text-end">{{.ReadCount}}</td>
                 <td class="text-end">{{.DeleteCount}}</td>
+                <td class="text-end">{{if .LockCount}}<span class="badge bg-warning text-dark">{{.LockCount}}</span>{{else}}0{{end}}</td>
                 <td>{{.LastAccess | fmtTime}}</td>
                 <td>{{.CreatedAt | fmtTime}}</td>
             </tr>

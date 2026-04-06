@@ -10,6 +10,13 @@
 
 <h2 class="mb-4">{{.Repo.RepoPath}}</h2>
 
+{{if .Flash}}
+<div class="alert alert-{{.FlashType}} alert-dismissible fade show" role="alert">
+    {{.Flash}}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+{{end}}
+
 <div class="row mb-4">
     <div class="col-md-4 mb-3">
         <div class="card bg-dark">
@@ -67,4 +74,41 @@
         </div>
     </div>
 </div>
+
+<h4 class="mt-4 mb-3">Locks ({{len .Locks}})</h4>
+
+{{if .Locks}}
+<div class="alert alert-warning">
+    <strong>Warning:</strong> Only delete locks if you are certain no backup or maintenance operation is currently running against this repository. Deleting a lock while an operation is in progress may corrupt the repository.
+</div>
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>Lock Name</th>
+                <th class="text-end">Size</th>
+                <th class="text-end">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .Locks}}
+            <tr>
+                <td><code>{{.Name}}</code></td>
+                <td class="text-end">{{.Size | fmtBytes}}</td>
+                <td class="text-end">
+                    <form method="POST" action="/-/ui/repos/{{$.Repo.RepoPath}}/delete-lock"
+                          onsubmit="return confirm('Delete this lock? Only do this if no backup is currently running.');">
+                        <input type="hidden" name="csrf_token" value="{{$.CSRFToken}}">
+                        <input type="hidden" name="lock_name" value="{{.Name}}">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>
+{{else}}
+<div class="alert alert-info">No locks found in this repository.</div>
+{{end}}
 {{end}}

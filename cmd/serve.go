@@ -133,7 +133,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	srv := server.New(cfg, backend, logger, aclEngine, ipExtractor, identityMW, tsServer)
 
 	if cfg.UI.Enabled {
-		if err := ui.RegisterRoutes(srv.Echo(), statsStore, cfg.UI.Auth.Username, cfg.UI.Auth.Password); err != nil {
+		if err := ui.RegisterRoutes(srv.Echo(), statsStore, backend, cfg.UI.Auth.Username, cfg.UI.Auth.Password); err != nil {
 			logger.Warn("failed to initialize web UI", zap.Error(err))
 		} else {
 			logger.Info("web UI enabled at /-/ui/")
