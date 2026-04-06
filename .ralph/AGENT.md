@@ -8,7 +8,7 @@ npm install
 # Or for Python project
 pip install -r requirements.txt
 
-# Or for Rust project  
+# Or for Rust project
 cargo build
 ```
 
