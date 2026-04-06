@@ -13,11 +13,13 @@
 Implement a CIFS/SMB (Samba) storage backend that allows the restic server to use a remote SMB share as storage without mounting it via the OS kernel. The backend should act as a proxy: the server connects to the SMB share using a Go-native or CGO-based SMB client library, reads/writes blobs directly over the SMB protocol, and exposes them through the existing `storage.Backend` interface.
 
 **Implementation approach (in order of preference):**
+
 1. **Go-native SMB client** (no CGO): Use a pure-Go SMB2/3 library (e.g. `github.com/hirochachacha/go-smb2`) to connect to the share and perform file I/O directly over the SMB protocol. This is the preferred approach for cross-platform compatibility and simple builds.
 2. **CGO-based library**: If no suitable pure-Go library exists or has critical limitations, use a CGO-based SMB library (e.g. `libsmbclient` bindings).
 3. **Kernel mount (last resort)**: Only if both above approaches fail, fall back to mounting the SMB share via the OS and using the filesystem backend on the mount point. This must be clearly documented as platform-dependent and requiring elevated privileges.
 
 **Configuration example:**
+
 ```yaml
 storage_backend: smb
 smb:
@@ -31,25 +33,26 @@ smb:
 ```
 
 **Acceptance criteria:**
-- [ ] New package `internal/storage/smb/` implementing `storage.Backend`
-- [ ] Connects to SMB share without OS-level mount (Go-native preferred)
-- [ ] Supports SMB2/SMB3 protocol
-- [ ] Supports authentication (username/password/domain)
-- [ ] Supports custom port configuration
-- [ ] Supports base path (subdirectory) within the share
-- [ ] Supports env var substitution for credentials (`${SMB_PASSWORD}`)
-- [ ] Atomic writes where possible (write to temp + rename)
-- [ ] Proper connection lifecycle management (connect/disconnect/reconnect)
-- [ ] Concurrent access safety (multiple goroutines reading/writing)
-- [ ] Integrated into config structs (`internal/config/`)
-- [ ] Integrated into backend factory in `cmd/serve.go`
-- [ ] Works with the instrumented storage wrapper for Prometheus metrics
-- [ ] Unit tests for backend logic
-- [ ] Integration test using a real SMB server (Docker-based, e.g. `dperson/samba` or similar)
-- [ ] Integration test exercises full restic lifecycle: init, backup, restore, verify, forget+prune
-- [ ] Integration test skips gracefully when Docker/SMB prerequisites are missing
-- [ ] Documentation in `docs/` describing setup and configuration
-- [ ] `config.example.yaml` updated with SMB section
+
+- [x] New package `internal/storage/smb/` implementing `storage.Backend`
+- [x] Connects to SMB share without OS-level mount (Go-native preferred)
+- [x] Supports SMB2/SMB3 protocol
+- [x] Supports authentication (username/password/domain)
+- [x] Supports custom port configuration
+- [x] Supports base path (subdirectory) within the share
+- [x] Supports env var substitution for credentials (`${SMB_PASSWORD}`)
+- [x] Atomic writes where possible (write to temp + rename)
+- [x] Proper connection lifecycle management (connect/disconnect/reconnect)
+- [x] Concurrent access safety (multiple goroutines reading/writing)
+- [x] Integrated into config structs (`internal/config/`)
+- [x] Integrated into backend factory in `cmd/serve.go`
+- [x] Works with the instrumented storage wrapper for Prometheus metrics
+- [x] Unit tests for backend logic
+- [x] Integration test using a real SMB server (Docker-based, e.g. `dperson/samba` or similar)
+- [x] Integration test exercises full restic lifecycle: init, backup, restore, verify, forget+prune
+- [x] Integration test skips gracefully when Docker/SMB prerequisites are missing
+- [x] Documentation in `docs/` describing setup and configuration
+- [x] `config.example.yaml` updated with SMB section
 
 ---
 
@@ -62,6 +65,7 @@ smb:
 Implement an NFS storage backend using a Go-native NFS client library (e.g. `github.com/vmware/go-nfs-client` or `github.com/willscott/go-nfs-client`). Similar to SMB, the server should connect to the NFS export directly over the NFS protocol without requiring a kernel mount. NFS is lower priority than SMB due to more complex permission management (uid/gid mapping, AUTH_SYS vs. Kerberos).
 
 **Configuration example:**
+
 ```yaml
 storage_backend: nfs
 nfs:
@@ -74,6 +78,7 @@ nfs:
 ```
 
 **Acceptance criteria:**
+
 - [ ] New package `internal/storage/nfs/` implementing `storage.Backend`
 - [ ] Connects to NFS export without OS-level mount (Go-native preferred)
 - [ ] Supports NFSv3 or NFSv4 protocol
@@ -102,6 +107,7 @@ nfs:
 Implement a statistics tracking layer that records per-repository traffic metrics (bytes written, bytes read, bytes deleted, request counts) during normal server operations. The tracking hooks into the storage backend (or middleware) and persists aggregated counters to a SQLite database. This avoids expensive filesystem traversals (like `du`) for size information and instead provides accurate traffic/usage data incrementally.
 
 **Key design decisions:**
+
 - Use SQLite as the persistence layer (lightweight, zero-config, embedded)
 - Track metrics incrementally: on each read/write/delete operation, update counters
 - Do NOT scan the filesystem or object store to compute repository sizes
@@ -109,6 +115,7 @@ Implement a statistics tracking layer that records per-repository traffic metric
 - Provide an in-process Go API for querying stats (used by Web UI and potentially metrics)
 
 **Tracked metrics per repository:**
+
 - `bytes_written` (cumulative ingress)
 - `bytes_read` (cumulative egress)
 - `bytes_deleted` (cumulative)
@@ -119,6 +126,7 @@ Implement a statistics tracking layer that records per-repository traffic metric
 - `created_at` (timestamp of first operation)
 
 **Configuration example:**
+
 ```yaml
 stats:
   enabled: true
@@ -126,6 +134,7 @@ stats:
 ```
 
 **Acceptance criteria:**
+
 - [ ] New package `internal/stats/` with SQLite-backed stats store
 - [ ] Uses `modernc.org/sqlite` (pure Go) or `mattn/go-sqlite3` (CGO) for SQLite
 - [ ] Schema auto-migration on startup
@@ -149,6 +158,7 @@ stats:
 Implement a server-side rendered web UI served at `/-/ui/` that displays repository information and traffic statistics. The UI uses Bootswatch (Bootstrap-based dark theme) with all assets embedded in the Go binary (no external CDN loads). Templates are rendered server-side using Go's `html/template`.
 
 **Frontend asset management:**
+
 - Use NPM locally to install Bootswatch (which includes Bootstrap)
 - A build script (Makefile target or shell script) copies the required CSS/JS files from `node_modules/` into an `internal/ui/static/` directory
 - Use Go's `embed` package to embed static assets and templates into the binary
@@ -156,21 +166,24 @@ Implement a server-side rendered web UI served at `/-/ui/` that displays reposit
 - Bootswatch theme: use a dark theme (e.g. `darkly` or `slate`)
 
 **UI pages:**
+
 1. **Dashboard** (`/-/ui/`): Overview with total repository count, aggregate traffic stats
 2. **Repository list** (`/-/ui/repos/`): Table of all repositories with per-repo stats (bytes in/out/deleted, last access)
 3. **Repository detail** (`/-/ui/repos/{path}/`): Detailed stats for a single repository, lock management (see Task 2.3)
 
 **Configuration example:**
+
 ```yaml
 ui:
   enabled: true
   # Optional Basic Auth protection (plaintext credentials in config)
   auth:
     username: "admin"
-    password: "secret"
+    password: "secret"  # pragma: allowlist secret
 ```
 
 **Acceptance criteria:**
+
 - [ ] New package `internal/ui/` with handler, templates, and embedded static assets
 - [ ] `package.json` at project root (or in `internal/ui/`) with Bootswatch as dependency
 - [ ] Build script/Makefile target: `npm install` + copy CSS/JS to embed directory
@@ -200,6 +213,7 @@ ui:
 Add lock visibility and manual lock removal to the Web UI. Restic stores lock files as blobs of type `lock` in the repository. The server can list and delete these lock blobs without knowing the repository encryption password (lock files are encrypted, but the server manages them as opaque blobs). The UI should display lock metadata where available (lock blob names, sizes, timestamps) and allow manual deletion of individual locks.
 
 **Important constraints:**
+
 - The server NEVER needs or receives the repository password
 - Lock blobs are opaque to the server (encrypted by restic client)
 - The server can only list lock blob names/sizes and delete them
@@ -207,6 +221,7 @@ Add lock visibility and manual lock removal to the Web UI. Restic stores lock fi
 - The UI should clearly communicate that deleting a lock is a manual override and may cause issues if a backup is actively running
 
 **Acceptance criteria:**
+
 - [ ] Repository detail page (`/-/ui/repos/{path}/`) shows list of lock blobs (name, size, creation time if available from storage metadata)
 - [ ] Each lock has a "Delete" button with a confirmation dialog
 - [ ] Lock deletion calls the existing storage backend's `DeleteBlob` with type `lock`
@@ -231,6 +246,7 @@ Add lock visibility and manual lock removal to the Web UI. Restic stores lock fi
 Two shutdown-related issues: (1) `internal/server/server.go:73` uses `context.Background()` for `echo.Shutdown()`, causing potential indefinite hangs if request handlers block. (2) The Tailscale `tsnet.Server` is not always properly shut down during termination, leaving stale nodes or orphaned state.
 
 **Acceptance criteria:**
+
 - [ ] HTTP server shutdown uses a configurable timeout (default 30s) instead of unbounded `context.Background()`
 - [ ] Configuration option: `shutdown_timeout: 30s` in config file
 - [ ] `tsnet.Server.Close()` is called reliably in all shutdown paths (signal, error, context cancellation)
@@ -251,6 +267,7 @@ Two shutdown-related issues: (1) `internal/server/server.go:73` uses `context.Ba
 The S3 backend's `SaveConfig()` and `SaveBlob()` use `io.ReadAll(data)` which reads the entire request body into memory before uploading. Multiple concurrent uploads can compound memory usage. Short-term fix: add `io.LimitReader` guard. Long-term: investigate streaming upload via S3 PutObject with `Content-Length`.
 
 **Acceptance criteria:**
+
 - [ ] `io.LimitReader` wraps the reader in `SaveBlob()` and `SaveConfig()` with a configurable max size
 - [ ] Server-wide `max_request_body_size` config option (uses Echo's `BodyLimit()` middleware)
 - [ ] Sensible default limit (e.g. 256 MB or configurable)
@@ -273,6 +290,7 @@ The S3 backend's `SaveConfig()` and `SaveBlob()` use `io.ReadAll(data)` which re
 In plain mode, identity resolution via reverse DNS is inherently unauthenticated. An attacker controlling PTR records could spoof identity and match ACL rules. Cached results (600s TTL) amplify the impact window. Investigation needed for attack scenarios and potential DoT/DoH support.
 
 **Acceptance criteria:**
+
 - [ ] Attack scenario document written in `docs/` covering: same-LAN attacker, cross-network, compromised DNS, cache poisoning
 - [ ] Each scenario documents: prerequisites, attack steps, impact, likelihood
 - [ ] Feasibility assessment for DoT/DoH support completed (e.g. `github.com/miekg/dns`)
@@ -292,6 +310,7 @@ In plain mode, identity resolution via reverse DNS is inherently unauthenticated
 The ACL engine has been manually tested in Tailscale mode but plain mode (rDNS-based identity) lacks end-to-end manual testing. Unit tests exist but do not cover the full integration path.
 
 **Acceptance criteria:**
+
 - [ ] rDNS identity resolution tested with system DNS
 - [ ] rDNS identity resolution tested with custom `dns_server` config
 - [ ] ACL rules matching on FQDN (e.g. `nas.home.arpa`) verified
@@ -314,6 +333,7 @@ The ACL engine has been manually tested in Tailscale mode but plain mode (rDNS-b
 Per-identity and per-repo-path Prometheus label values create unbounded cardinality if exposed to broad networks. Currently bounded by Tailscale network size. Enhancement to add controls.
 
 **Acceptance criteria:**
+
 - [ ] Config option to make per-host metrics opt-in (`metrics.per_host_enabled: true/false`)
 - [ ] When disabled, aggregate metrics are still collected (without identity/repo-path labels)
 - [ ] Alternatively: cap tracked identities (top-N with "other" bucket) or hash-bucketed labels
@@ -334,6 +354,7 @@ Per-identity and per-repo-path Prometheus label values create unbounded cardinal
 The `/-/metrics` endpoint is registered outside the ACL middleware chain (intentional for monitoring access). Enhancement to optionally route it through ACL for unified access control.
 
 **Acceptance criteria:**
+
 - [ ] Config option: `metrics.acl_enabled: true/false` (default: false, preserving current behavior)
 - [ ] When enabled, metrics endpoint passes through ACL middleware
 - [ ] When disabled, current behavior preserved (separate Basic Auth)
@@ -353,6 +374,7 @@ The `/-/metrics` endpoint is registered outside the ACL middleware chain (intent
 ACL denial responses currently include detailed identity information (hostname, user, tags, IP). This is useful for troubleshooting but may be undesirable in some deployments. Make it configurable.
 
 **Acceptance criteria:**
+
 - [ ] Config option: `acl.verbose_denials: true` (default: true, preserving current behavior)
 - [ ] When `false`, denial response includes only: `{"status": 403, "error": "access denied", "request_id": "..."}`
 - [ ] Detailed identity information still logged server-side regardless of setting
@@ -379,9 +401,13 @@ ACL denial responses currently include detailed identity information (hostname, 
 | LOW | Task 3.7: ACL Denial Verbosity (#42) | GitHub Issues |
 
 ## Completed
+
 - [x] Project initialization
+- [x] Task 1.1: CIFS/SMB Storage Backend
+- [x] Task 3.1: Graceful Shutdown Timeout (commit 477c861)
 
 ## Notes
+
 - Epic 1 and Epic 2 (new features) have higher priority than Epic 3 (existing issues)
 - CIFS/SMB backend is more important than NFS due to simpler permission model
 - Web UI requires Stats Engine (Task 2.1) to be completed first
