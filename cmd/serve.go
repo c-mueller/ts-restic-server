@@ -21,6 +21,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/storage/memory"
 	rclonebackend "github.com/c-mueller/ts-restic-server/internal/storage/rclone"
 	s3backend "github.com/c-mueller/ts-restic-server/internal/storage/s3"
+	smbbackend "github.com/c-mueller/ts-restic-server/internal/storage/smb"
 	webdavbackend "github.com/c-mueller/ts-restic-server/internal/storage/webdav"
 	"github.com/labstack/echo/v4"
 	"github.com/spf13/cobra"
@@ -263,6 +264,8 @@ func buildBackend(cfg *config.Config) (storage.Backend, error) {
 		return webdavbackend.New(cfg.Storage.WebDAV.Endpoint, cfg.Storage.WebDAV.Username, cfg.Storage.WebDAV.Password, cfg.Storage.WebDAV.Prefix, cfg.Storage.DataSharding), nil
 	case "rclone":
 		return rclonebackend.New(cfg.Storage.Rclone.Endpoint, cfg.Storage.Rclone.Username, cfg.Storage.Rclone.Password), nil
+	case "smb":
+		return smbbackend.New(cfg.Storage.SMB.Server, cfg.Storage.SMB.Port, cfg.Storage.SMB.Share, cfg.Storage.SMB.Username, cfg.Storage.SMB.Password, cfg.Storage.SMB.Domain, cfg.Storage.SMB.BasePath)
 	default:
 		return nil, &config.ValidationError{Field: "storage.backend", Value: cfg.Storage.Backend}
 	}

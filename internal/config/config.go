@@ -57,6 +57,7 @@ type Storage struct {
 	S3             S3     `mapstructure:"s3"`
 	WebDAV         WebDAV `mapstructure:"webdav"`
 	Rclone         Rclone `mapstructure:"rclone"`
+	SMB            SMB    `mapstructure:"smb"`
 }
 
 type Rclone struct {
@@ -81,6 +82,16 @@ type S3 struct {
 	SecretKey string `mapstructure:"secret_key"`
 }
 
+type SMB struct {
+	Server   string `mapstructure:"server"`
+	Share    string `mapstructure:"share"`
+	Username string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
+	Domain   string `mapstructure:"domain"`
+	Port     int    `mapstructure:"port"`
+	BasePath string `mapstructure:"base_path"`
+}
+
 func SetDefaults() {
 	viper.SetDefault("listen", ":8880")
 	viper.SetDefault("listen_mode", "plain")
@@ -93,6 +104,8 @@ func SetDefaults() {
 	viper.SetDefault("storage.max_memory_bytes", 104857600) // 100MB
 	viper.SetDefault("storage.data_sharding", true)
 	viper.SetDefault("shutdown_timeout", 30)
+	viper.SetDefault("storage.smb.port", 445)
+	viper.SetDefault("storage.smb.domain", "WORKGROUP")
 	viper.SetDefault("acl.identity_cache_size", 1000)
 	viper.SetDefault("metrics.enabled", true)
 	viper.SetDefault("metrics.password", "")
@@ -179,9 +192,9 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.Storage.Backend {
-	case "filesystem", "s3", "memory", "webdav", "rclone":
+	case "filesystem", "s3", "memory", "webdav", "rclone", "smb":
 	default:
-		return fmt.Errorf("invalid storage.backend %q: must be \"filesystem\", \"s3\", \"memory\", \"webdav\", or \"rclone\"", c.Storage.Backend)
+		return fmt.Errorf("invalid storage.backend %q: must be \"filesystem\", \"s3\", \"memory\", \"webdav\", \"rclone\", or \"smb\"", c.Storage.Backend)
 	}
 
 	if c.Storage.Backend == "filesystem" && c.Storage.Path == "" {
@@ -219,6 +232,18 @@ func (c *Config) Validate() error {
 	if c.Storage.Backend == "rclone" && c.Storage.Rclone.Endpoint != "" {
 		if !strings.HasPrefix(c.Storage.Rclone.Endpoint, "http://") && !strings.HasPrefix(c.Storage.Rclone.Endpoint, "https://") {
 			return fmt.Errorf("storage.rclone.endpoint %q must include a scheme (http:// or https://)", c.Storage.Rclone.Endpoint)
+		}
+	}
+
+	if c.Storage.Backend == "smb" {
+		if c.Storage.SMB.Server == "" {
+			return fmt.Errorf("storage.smb.server is required for smb backend")
+		}
+		if c.Storage.SMB.Share == "" {
+			return fmt.Errorf("storage.smb.share is required for smb backend")
+		}
+		if c.Storage.SMB.Port <= 0 || c.Storage.SMB.Port > 65535 {
+			return fmt.Errorf("storage.smb.port must be between 1 and 65535 (got %d)", c.Storage.SMB.Port)
 		}
 	}
 

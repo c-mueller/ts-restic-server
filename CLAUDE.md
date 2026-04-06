@@ -55,6 +55,7 @@ See `docs/docker.md` for Compose setup.
 - `internal/storage/s3/` — S3 backend (aws-sdk-go-v2, custom endpoints, static creds)
 - `internal/storage/webdav/` — WebDAV backend (gowebdav, Nextcloud/ownCloud/HiDrive/Box)
 - `internal/storage/rclone/` — Rclone backend (HTTP client proxying to restic REST server)
+- `internal/storage/smb/` — SMB/CIFS backend (go-smb2, pure Go, no OS mount)
 - `internal/storage/instrumented/` — Prometheus-instrumented backend wrapper (latency, bytes, errors)
 - `tests/integration/` — Integration tests (full restic lifecycle per backend)
 - `docs/` — Documentation (Docker setup, testing, ACL)
@@ -76,6 +77,7 @@ See `config.example.yaml` for all options.
 - **S3**: supports custom endpoints (MinIO, Hetzner, etc.), static or chain credentials
 - **WebDAV**: gowebdav client, flat structure per type (no data/00-ff sharding), Basic Auth
 - **Rclone**: HTTP client proxying to `rclone serve restic` or any restic REST server
+- **SMB/CIFS**: go-smb2 pure-Go client, NTLM auth, atomic writes via temp+rename, auto-reconnect
 - **Tailscale**: tsnet ListenTLS on :443, state_dir for persistent keys, WhoIs identity resolution
 - **ACL engine**: per-identity + per-repo-path access control with cascading rules (deepest path wins)
 - **Identity resolution**: Tailscale WhoIs (tags, user, hostname, IP) or rDNS (plain mode)

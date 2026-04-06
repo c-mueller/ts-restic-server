@@ -40,6 +40,14 @@ storage:
     endpoint: ""          # rclone serve restic URL (e.g. http://localhost:8080)
     username: ""          # optional basic auth username
     password: ""          # optional basic auth password
+  smb:
+    server: ""            # SMB server hostname or IP (e.g. nas.local)
+    share: ""             # share name (e.g. backups)
+    username: ""          # SMB username
+    password: ""          # SMB password (supports ${SMB_PASSWORD} env var substitution)
+    domain: WORKGROUP     # SMB domain (default: WORKGROUP)
+    port: 445             # SMB port (default: 445)
+    base_path: ""         # optional subdirectory within the share
 
 # Optional: load ACL rules from a separate file.
 # Cannot be used together with inline acl: section.
