@@ -52,7 +52,7 @@ func New(server string, port int, share, username, password, domain, basePath st
 }
 
 func (b *Backend) connect() error {
-	addr := fmt.Sprintf("%s:%d", b.server, b.port)
+	addr := net.JoinHostPort(b.server, fmt.Sprintf("%d", b.port))
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("dial %s: %w", addr, err)
