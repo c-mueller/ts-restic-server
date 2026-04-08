@@ -405,6 +405,15 @@ ACL denial responses currently include detailed identity information (hostname, 
 - [x] Project initialization
 - [x] Task 1.1: CIFS/SMB Storage Backend
 - [x] Task 3.1: Graceful Shutdown Timeout (commit 477c861)
+- [x] Task 2.1: Statistics Tracking Engine (SQLite)
+- [x] Task 2.2: Web UI Framework & Repository Overview
+- [x] Task 2.3: Web UI - Repository Lock Management
+- [x] Task 3.2: S3 Backend Request Body Size Limit
+- [x] Task 3.3: rDNS Spoofing Investigation
+- [x] Task 3.7: ACL Denial Verbosity
+- [x] Task 3.5: Metrics Cardinality Controls
+- [x] Task 3.6: ACL for Metrics Endpoint
+- [x] Task 3.4: ACL Plain Mode Testing
 
 ## Notes
 

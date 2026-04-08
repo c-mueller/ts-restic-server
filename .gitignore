@@ -7,6 +7,14 @@ config.yaml
 # Claude Code
 .claude/settings.local.json
 
+# Ralph (runtime state)
+.ralph/.*
+.ralph/logs/
+.ralph/live.log
+.ralph/progress.json
+.ralph/status.json
+.ralphrc
+
 # IDE
 .idea/
 .vscode/

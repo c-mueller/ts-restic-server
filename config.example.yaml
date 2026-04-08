@@ -31,7 +31,7 @@ ui:
 # Use --env-lenient to allow unresolved placeholders.
 
 storage:
-  backend: filesystem     # "filesystem", "s3", "memory"
+  backend: filesystem     # "filesystem", "s3", "memory", "webdav", "rclone", "smb", "nfs"
   path: ./restic_data
   max_memory_bytes: 104857600  # 100MB for memory backend
   data_sharding: true          # split data/ into 256 subdirs (00-ff); applies to filesystem and webdav
@@ -61,6 +61,12 @@ storage:
     domain: WORKGROUP     # SMB domain (default: WORKGROUP)
     port: 445             # SMB port (default: 445)
     base_path: ""         # optional subdirectory within the share
+  nfs:
+    server: ""            # NFS server hostname or IP (e.g. nas.local)
+    export: ""            # NFS export path (e.g. /volume1/backups)
+    base_path: ""         # optional subdirectory within the export
+    uid: 65534            # UID for NFS AUTH_SYS authentication (default: 65534/nobody)
+    gid: 65534            # GID for NFS AUTH_SYS authentication (default: 65534/nogroup)
 
 # Optional: load ACL rules from a separate file.
 # Cannot be used together with inline acl: section.

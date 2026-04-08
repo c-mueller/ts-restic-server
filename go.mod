@@ -15,6 +15,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/studio-b12/gowebdav v0.12.0
 	github.com/testcontainers/testcontainers-go v0.40.0
+	github.com/willscott/go-nfs-client v0.0.0-20251022144359-801f10d98886
 	go.uber.org/zap v1.27.1
 	golang.org/x/net v0.51.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -110,6 +111,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
+	github.com/rasky/go-xdr v0.0.0-20170124162913-1a41d1a06c93 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/safchain/ethtool v0.3.0 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect

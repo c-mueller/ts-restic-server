@@ -20,6 +20,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/storage/filesystem"
 	"github.com/c-mueller/ts-restic-server/internal/storage/instrumented"
 	"github.com/c-mueller/ts-restic-server/internal/storage/memory"
+	nfsbackend "github.com/c-mueller/ts-restic-server/internal/storage/nfs"
 	rclonebackend "github.com/c-mueller/ts-restic-server/internal/storage/rclone"
 	s3backend "github.com/c-mueller/ts-restic-server/internal/storage/s3"
 	smbbackend "github.com/c-mueller/ts-restic-server/internal/storage/smb"
@@ -289,6 +290,8 @@ func buildBackend(cfg *config.Config) (storage.Backend, error) {
 		return rclonebackend.New(cfg.Storage.Rclone.Endpoint, cfg.Storage.Rclone.Username, cfg.Storage.Rclone.Password), nil
 	case "smb":
 		return smbbackend.New(cfg.Storage.SMB.Server, cfg.Storage.SMB.Port, cfg.Storage.SMB.Share, cfg.Storage.SMB.Username, cfg.Storage.SMB.Password, cfg.Storage.SMB.Domain, cfg.Storage.SMB.BasePath)
+	case "nfs":
+		return nfsbackend.New(cfg.Storage.NFS.Server, cfg.Storage.NFS.Export, cfg.Storage.NFS.BasePath, cfg.Storage.NFS.UID, cfg.Storage.NFS.GID)
 	default:
 		return nil, &config.ValidationError{Field: "storage.backend", Value: cfg.Storage.Backend}
 	}

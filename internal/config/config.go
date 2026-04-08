@@ -79,6 +79,7 @@ type Storage struct {
 	WebDAV         WebDAV `mapstructure:"webdav"`
 	Rclone         Rclone `mapstructure:"rclone"`
 	SMB            SMB    `mapstructure:"smb"`
+	NFS            NFS    `mapstructure:"nfs"`
 }
 
 type Rclone struct {
@@ -113,6 +114,14 @@ type SMB struct {
 	BasePath string `mapstructure:"base_path"`
 }
 
+type NFS struct {
+	Server   string `mapstructure:"server"`
+	Export   string `mapstructure:"export"`
+	BasePath string `mapstructure:"base_path"`
+	UID      uint32 `mapstructure:"uid"`
+	GID      uint32 `mapstructure:"gid"`
+}
+
 func SetDefaults() {
 	viper.SetDefault("listen", ":8880")
 	viper.SetDefault("listen_mode", "plain")
@@ -128,6 +137,8 @@ func SetDefaults() {
 	viper.SetDefault("max_request_body_size", "256MB")
 	viper.SetDefault("storage.smb.port", 445)
 	viper.SetDefault("storage.smb.domain", "WORKGROUP")
+	viper.SetDefault("storage.nfs.uid", 65534)
+	viper.SetDefault("storage.nfs.gid", 65534)
 	viper.SetDefault("acl.identity_cache_size", 1000)
 	viper.SetDefault("acl.verbose_denials", true)
 	viper.SetDefault("metrics.enabled", true)
@@ -220,9 +231,9 @@ func (c *Config) Validate() error {
 	}
 
 	switch c.Storage.Backend {
-	case "filesystem", "s3", "memory", "webdav", "rclone", "smb":
+	case "filesystem", "s3", "memory", "webdav", "rclone", "smb", "nfs":
 	default:
-		return fmt.Errorf("invalid storage.backend %q: must be \"filesystem\", \"s3\", \"memory\", \"webdav\", \"rclone\", or \"smb\"", c.Storage.Backend)
+		return fmt.Errorf("invalid storage.backend %q: must be \"filesystem\", \"s3\", \"memory\", \"webdav\", \"rclone\", \"smb\", or \"nfs\"", c.Storage.Backend)
 	}
 
 	if c.Storage.Backend == "filesystem" && c.Storage.Path == "" {
@@ -272,6 +283,15 @@ func (c *Config) Validate() error {
 		}
 		if c.Storage.SMB.Port <= 0 || c.Storage.SMB.Port > 65535 {
 			return fmt.Errorf("storage.smb.port must be between 1 and 65535 (got %d)", c.Storage.SMB.Port)
+		}
+	}
+
+	if c.Storage.Backend == "nfs" {
+		if c.Storage.NFS.Server == "" {
+			return fmt.Errorf("storage.nfs.server is required for nfs backend")
+		}
+		if c.Storage.NFS.Export == "" {
+			return fmt.Errorf("storage.nfs.export is required for nfs backend")
 		}
 	}
 
