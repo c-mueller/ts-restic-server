@@ -1,13 +1,13 @@
 module github.com/c-mueller/ts-restic-server
 
-go 1.25.5
+go 1.26.1
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.41.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.14
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.14
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.1
-	github.com/docker/docker v28.5.1+incompatible
+	github.com/docker/docker v28.5.2+incompatible
 	github.com/google/uuid v1.6.0
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/labstack/echo/v4 v4.15.1
@@ -21,12 +21,12 @@ require (
 	golang.org/x/net v0.51.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.48.1
-	tailscale.com v1.94.2
+	tailscale.com v1.96.5
 )
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
@@ -66,7 +66,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
-	github.com/gaissmai/bart v0.18.0 // indirect
+	github.com/gaissmai/bart v0.26.1 // indirect
 	github.com/geoffgarside/ber v1.1.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20250813024750-ebf49471dced // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -151,7 +151,7 @@ require (
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/oauth2 v0.32.0 // indirect
+	golang.org/x/oauth2 v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
 	golang.org/x/term v0.40.0 // indirect
@@ -160,7 +160,7 @@ require (
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	golang.zx2c4.com/wireguard/windows v0.5.3 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
-	gvisor.dev/gvisor v0.0.0-20250205023644-9414b50a5633 // indirect
+	gvisor.dev/gvisor v0.0.0-20260224225140-573d5e7127a8 // indirect
 	modernc.org/libc v1.70.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
