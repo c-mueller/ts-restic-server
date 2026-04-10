@@ -74,7 +74,6 @@ type Storage struct {
 	Backend        string `mapstructure:"backend"`
 	Path           string `mapstructure:"path"`
 	MaxMemoryBytes int64  `mapstructure:"max_memory_bytes"`
-	DataSharding   bool   `mapstructure:"data_sharding"`
 	S3             S3     `mapstructure:"s3"`
 	WebDAV         WebDAV `mapstructure:"webdav"`
 	Rclone         Rclone `mapstructure:"rclone"`
@@ -132,7 +131,6 @@ func SetDefaults() {
 	viper.SetDefault("storage.backend", "filesystem")
 	viper.SetDefault("storage.path", "./restic_data")
 	viper.SetDefault("storage.max_memory_bytes", 104857600) // 100MB
-	viper.SetDefault("storage.data_sharding", true)
 	viper.SetDefault("shutdown_timeout", 30)
 	viper.SetDefault("max_request_body_size", "256MB")
 	viper.SetDefault("storage.smb.port", 445)

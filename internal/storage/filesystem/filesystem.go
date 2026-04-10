@@ -20,10 +20,9 @@ var ErrPathEscape = errors.New("path escapes storage directory")
 type Backend struct {
 	basePath     string
 	resolvedBase string
-	dataSharding bool
 }
 
-func New(basePath string, dataSharding bool) (*Backend, error) {
+func New(basePath string) (*Backend, error) {
 	if err := os.MkdirAll(basePath, 0o700); err != nil {
 		return nil, fmt.Errorf("create storage directory %s: %w", basePath, err)
 	}
@@ -31,7 +30,7 @@ func New(basePath string, dataSharding bool) (*Backend, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve storage directory %s: %w", basePath, err)
 	}
-	return &Backend{basePath: basePath, resolvedBase: resolved, dataSharding: dataSharding}, nil
+	return &Backend{basePath: basePath, resolvedBase: resolved}, nil
 }
 
 func (b *Backend) CreateRepo(ctx context.Context) error {
@@ -44,13 +43,9 @@ func (b *Backend) CreateRepo(ctx context.Context) error {
 		filepath.Join(rp, "index"),
 	}
 
-	if b.dataSharding {
-		// Create data/00 - data/ff subdirectories
-		for i := 0; i < 256; i++ {
-			dirs = append(dirs, filepath.Join(rp, "data", fmt.Sprintf("%02x", i)))
-		}
-	} else {
-		dirs = append(dirs, filepath.Join(rp, "data"))
+	// Create data/00 - data/ff subdirectories (restic-server compatible layout)
+	for i := 0; i < 256; i++ {
+		dirs = append(dirs, filepath.Join(rp, "data", fmt.Sprintf("%02x", i)))
 	}
 
 	for _, dir := range dirs {
@@ -113,7 +108,16 @@ func (b *Backend) StatBlob(ctx context.Context, t storage.BlobType, name string)
 	if err := b.validatePath(p); err != nil {
 		return 0, err
 	}
-	return statFile(p)
+	size, err := statFile(p)
+	if err == storage.ErrNotFound && t == storage.BlobData && len(name) >= 2 {
+		// Fallback: check unsharded path for pre-sharding data.
+		up := b.blobPathUnsharded(ctx, name)
+		if verr := b.validatePath(up); verr != nil {
+			return 0, err
+		}
+		return statFile(up)
+	}
+	return size, err
 }
 
 func (b *Backend) GetBlob(ctx context.Context, t storage.BlobType, name string, offset, length int64) (io.ReadCloser, error) {
@@ -123,10 +127,19 @@ func (b *Backend) GetBlob(ctx context.Context, t storage.BlobType, name string, 
 	}
 	f, err := os.Open(p)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, storage.ErrNotFound
+		if os.IsNotExist(err) && t == storage.BlobData && len(name) >= 2 {
+			// Fallback: try unsharded path for pre-sharding data.
+			up := b.blobPathUnsharded(ctx, name)
+			if verr := b.validatePath(up); verr == nil {
+				f, err = os.Open(up)
+			}
 		}
-		return nil, err
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil, storage.ErrNotFound
+			}
+			return nil, err
+		}
 	}
 
 	if offset > 0 {
@@ -157,6 +170,14 @@ func (b *Backend) SaveBlob(ctx context.Context, t storage.BlobType, name string,
 		io.Copy(io.Discard, data)
 		return nil
 	}
+	// Also check unsharded path for pre-sharding data.
+	if t == storage.BlobData && len(name) >= 2 {
+		up := b.blobPathUnsharded(ctx, name)
+		if _, err := os.Lstat(up); err == nil {
+			io.Copy(io.Discard, data)
+			return nil
+		}
+	}
 
 	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
 		return err
@@ -171,10 +192,19 @@ func (b *Backend) DeleteBlob(ctx context.Context, t storage.BlobType, name strin
 	}
 	err := os.Remove(p)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return storage.ErrNotFound
+		if os.IsNotExist(err) && t == storage.BlobData && len(name) >= 2 {
+			// Fallback: try unsharded path for pre-sharding data.
+			up := b.blobPathUnsharded(ctx, name)
+			if verr := b.validatePath(up); verr == nil {
+				err = os.Remove(up)
+			}
 		}
-		return err
+		if err != nil {
+			if os.IsNotExist(err) {
+				return storage.ErrNotFound
+			}
+			return err
+		}
 	}
 	return nil
 }
@@ -237,10 +267,16 @@ func (b *Backend) typePath(ctx context.Context, t storage.BlobType) string {
 }
 
 func (b *Backend) blobPath(ctx context.Context, t storage.BlobType, name string) string {
-	if t == storage.BlobData && b.dataSharding && len(name) >= 2 {
+	if t == storage.BlobData && len(name) >= 2 {
 		return filepath.Join(b.repoPath(ctx), "data", name[:2], name)
 	}
 	return filepath.Join(b.repoPath(ctx), string(t), name)
+}
+
+// blobPathUnsharded returns the flat (non-sharded) path for a data blob.
+// Used as fallback when reading blobs that were stored before sharding was enabled.
+func (b *Backend) blobPathUnsharded(ctx context.Context, name string) string {
+	return filepath.Join(b.repoPath(ctx), "data", name)
 }
 
 // validatePath resolves symlinks in path and verifies it stays within the

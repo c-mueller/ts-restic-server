@@ -161,10 +161,19 @@ func (b *Backend) StatBlob(ctx context.Context, t storage.BlobType, name string)
 		Key:    aws.String(b.blobKey(ctx, t, name)),
 	})
 	if err != nil {
-		if isNotFound(err) {
-			return 0, storage.ErrNotFound
+		if isNotFound(err) && t == storage.BlobData && len(name) >= 2 {
+			// Fallback: try unsharded key for pre-sharding data.
+			out, err = b.client.HeadObject(ctx, &s3.HeadObjectInput{
+				Bucket: aws.String(b.bucket),
+				Key:    aws.String(b.blobKeyUnsharded(ctx, name)),
+			})
 		}
-		return 0, err
+		if err != nil {
+			if isNotFound(err) {
+				return 0, storage.ErrNotFound
+			}
+			return 0, err
+		}
 	}
 	if out.ContentLength == nil {
 		return 0, nil
@@ -190,10 +199,17 @@ func (b *Backend) GetBlob(ctx context.Context, t storage.BlobType, name string, 
 
 	out, err := b.client.GetObject(ctx, input)
 	if err != nil {
-		if isNotFound(err) {
-			return nil, storage.ErrNotFound
+		if isNotFound(err) && t == storage.BlobData && len(name) >= 2 {
+			// Fallback: try unsharded key for pre-sharding data.
+			input.Key = aws.String(b.blobKeyUnsharded(ctx, name))
+			out, err = b.client.GetObject(ctx, input)
 		}
-		return nil, err
+		if err != nil {
+			if isNotFound(err) {
+				return nil, storage.ErrNotFound
+			}
+			return nil, err
+		}
 	}
 	return out.Body, nil
 }
@@ -216,21 +232,38 @@ func (b *Backend) SaveBlob(ctx context.Context, t storage.BlobType, name string,
 }
 
 func (b *Backend) DeleteBlob(ctx context.Context, t storage.BlobType, name string) error {
+	key := b.blobKey(ctx, t, name)
+
 	// Check existence first (S3 DeleteObject doesn't error on missing keys)
 	_, err := b.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.blobKey(ctx, t, name)),
+		Key:    aws.String(key),
 	})
 	if err != nil {
-		if isNotFound(err) {
-			return storage.ErrNotFound
+		if isNotFound(err) && t == storage.BlobData && len(name) >= 2 {
+			// Fallback: try unsharded key for pre-sharding data.
+			ukey := b.blobKeyUnsharded(ctx, name)
+			if _, err := b.client.HeadObject(ctx, &s3.HeadObjectInput{
+				Bucket: aws.String(b.bucket),
+				Key:    aws.String(ukey),
+			}); err != nil {
+				if isNotFound(err) {
+					return storage.ErrNotFound
+				}
+				return err
+			}
+			key = ukey
+		} else {
+			if isNotFound(err) {
+				return storage.ErrNotFound
+			}
+			return err
 		}
-		return err
 	}
 
 	_, err = b.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(b.bucket),
-		Key:    aws.String(b.blobKey(ctx, t, name)),
+		Key:    aws.String(key),
 	})
 	return err
 }
@@ -297,7 +330,16 @@ func (b *Backend) key(ctx context.Context, parts ...string) string {
 }
 
 func (b *Backend) blobKey(ctx context.Context, t storage.BlobType, name string) string {
+	if t == storage.BlobData && len(name) >= 2 {
+		return b.key(ctx, "data", name[:2], name)
+	}
 	return b.key(ctx, string(t), name)
+}
+
+// blobKeyUnsharded returns the flat (non-sharded) key for a data blob.
+// Used as fallback when reading blobs that were stored before sharding was enabled.
+func (b *Backend) blobKeyUnsharded(ctx context.Context, name string) string {
+	return b.key(ctx, "data", name)
 }
 
 func isNotFound(err error) bool {

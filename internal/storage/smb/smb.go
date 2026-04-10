@@ -161,7 +161,16 @@ func (b *Backend) typePath(ctx context.Context, t storage.BlobType) string {
 }
 
 func (b *Backend) blobPath(ctx context.Context, t storage.BlobType, name string) string {
+	if t == storage.BlobData && len(name) >= 2 {
+		return path.Join(b.repoPath(ctx), "data", name[:2], name)
+	}
 	return path.Join(b.repoPath(ctx), string(t), name)
+}
+
+// blobPathUnsharded returns the flat (non-sharded) path for a data blob.
+// Used as fallback when reading blobs that were stored before sharding was enabled.
+func (b *Backend) blobPathUnsharded(ctx context.Context, name string) string {
+	return path.Join(b.repoPath(ctx), "data", name)
 }
 
 func (b *Backend) CreateRepo(ctx context.Context) error {
@@ -172,7 +181,10 @@ func (b *Backend) CreateRepo(ctx context.Context) error {
 		path.Join(rp, "locks"),
 		path.Join(rp, "snapshots"),
 		path.Join(rp, "index"),
-		path.Join(rp, "data"),
+	}
+	// Create data/00 - data/ff subdirectories (restic-server compatible layout)
+	for i := 0; i < 256; i++ {
+		dirs = append(dirs, path.Join(rp, "data", fmt.Sprintf("%02x", i)))
 	}
 
 	return b.withShare(func(s *smb2.Share) error {
@@ -258,6 +270,19 @@ func (b *Backend) StatBlob(ctx context.Context, t storage.BlobType, name string)
 	err := b.withShare(func(s *smb2.Share) error {
 		info, err := s.Stat(p)
 		if err != nil {
+			if isNotFound(err) && t == storage.BlobData && len(name) >= 2 {
+				// Fallback: try unsharded path for pre-sharding data.
+				up := b.blobPathUnsharded(ctx, name)
+				info, err = s.Stat(up)
+				if err != nil {
+					if isNotFound(err) {
+						return storage.ErrNotFound
+					}
+					return err
+				}
+				size = info.Size()
+				return nil
+			}
 			if isNotFound(err) {
 				return storage.ErrNotFound
 			}
@@ -277,10 +302,17 @@ func (b *Backend) GetBlob(ctx context.Context, t storage.BlobType, name string, 
 	err := b.withShare(func(s *smb2.Share) error {
 		f, err := s.Open(p)
 		if err != nil {
-			if isNotFound(err) {
-				return storage.ErrNotFound
+			if isNotFound(err) && t == storage.BlobData && len(name) >= 2 {
+				// Fallback: try unsharded path for pre-sharding data.
+				up := b.blobPathUnsharded(ctx, name)
+				f, err = s.Open(up)
 			}
-			return err
+			if err != nil {
+				if isNotFound(err) {
+					return storage.ErrNotFound
+				}
+				return err
+			}
 		}
 		defer f.Close()
 
@@ -314,6 +346,13 @@ func (b *Backend) SaveBlob(ctx context.Context, t storage.BlobType, name string,
 		if _, err := s.Stat(p); err == nil {
 			return nil
 		}
+		// Also check unsharded path for pre-sharding data.
+		if t == storage.BlobData && len(name) >= 2 {
+			up := b.blobPathUnsharded(ctx, name)
+			if _, err := s.Stat(up); err == nil {
+				return nil
+			}
+		}
 		dir := path.Dir(p)
 		if err := s.MkdirAll(dir, 0o755); err != nil {
 			return err
@@ -326,6 +365,17 @@ func (b *Backend) DeleteBlob(ctx context.Context, t storage.BlobType, name strin
 	p := b.blobPath(ctx, t, name)
 	return b.withShare(func(s *smb2.Share) error {
 		if err := s.Remove(p); err != nil {
+			if isNotFound(err) && t == storage.BlobData && len(name) >= 2 {
+				// Fallback: try unsharded path for pre-sharding data.
+				up := b.blobPathUnsharded(ctx, name)
+				if err := s.Remove(up); err != nil {
+					if isNotFound(err) {
+						return storage.ErrNotFound
+					}
+					return err
+				}
+				return nil
+			}
 			if isNotFound(err) {
 				return storage.ErrNotFound
 			}
@@ -339,24 +389,10 @@ func (b *Backend) ListBlobs(ctx context.Context, t storage.BlobType) ([]storage.
 	dir := b.typePath(ctx, t)
 	var blobs []storage.Blob
 	err := b.withShare(func(s *smb2.Share) error {
-		entries, err := s.ReadDir(dir)
-		if err != nil {
-			if isNotFound(err) {
-				blobs = []storage.Blob{}
-				return nil
-			}
-			return err
+		if t == storage.BlobData {
+			return b.listShardedBlobs(s, dir, &blobs)
 		}
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
-			}
-			blobs = append(blobs, storage.Blob{
-				Name: e.Name(),
-				Size: e.Size(),
-			})
-		}
-		return nil
+		return b.listDir(s, dir, &blobs)
 	})
 	if err != nil {
 		return nil, err
@@ -365,6 +401,43 @@ func (b *Backend) ListBlobs(ctx context.Context, t storage.BlobType) ([]storage.
 		blobs = []storage.Blob{}
 	}
 	return blobs, nil
+}
+
+// listDir lists blobs in a single directory.
+func (b *Backend) listDir(s *smb2.Share, dir string, blobs *[]storage.Blob) error {
+	entries, err := s.ReadDir(dir)
+	if err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		*blobs = append(*blobs, storage.Blob{
+			Name: e.Name(),
+			Size: e.Size(),
+		})
+	}
+	return nil
+}
+
+// listShardedBlobs iterates the 256 shard subdirectories and collects all blobs.
+// It also collects any blobs stored directly in dataDir (pre-sharding fallback).
+func (b *Backend) listShardedBlobs(s *smb2.Share, dataDir string, blobs *[]storage.Blob) error {
+	// Collect blobs from flat data/ directory (pre-sharding fallback).
+	if err := b.listDir(s, dataDir, blobs); err != nil {
+		return err
+	}
+	for i := 0; i < 256; i++ {
+		subdir := path.Join(dataDir, fmt.Sprintf("%02x", i))
+		if err := b.listDir(s, subdir, blobs); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // atomicWrite writes content to a temporary file on the share and renames

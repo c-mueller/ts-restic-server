@@ -34,7 +34,6 @@ storage:
   backend: filesystem     # "filesystem", "s3", "memory", "webdav", "rclone", "smb", "nfs"
   path: ./restic_data
   max_memory_bytes: 104857600  # 100MB for memory backend
-  data_sharding: true          # split data/ into 256 subdirs (00-ff); applies to filesystem and webdav
   s3:
     bucket: my-bucket
     prefix: ""

@@ -15,17 +15,15 @@ import (
 )
 
 type Backend struct {
-	client       *gowebdav.Client
-	prefix       string
-	dataSharding bool
+	client *gowebdav.Client
+	prefix string
 }
 
-func New(endpoint, username, password, prefix string, dataSharding bool) *Backend {
+func New(endpoint, username, password, prefix string) *Backend {
 	client := gowebdav.NewClient(endpoint, username, password)
 	return &Backend{
-		client:       client,
-		prefix:       strings.TrimSuffix(prefix, "/"),
-		dataSharding: dataSharding,
+		client: client,
+		prefix: strings.TrimSuffix(prefix, "/"),
 	}
 }
 
@@ -38,12 +36,11 @@ func (b *Backend) CreateRepo(ctx context.Context) error {
 		}
 	}
 
-	if b.dataSharding {
-		for i := 0; i < 256; i++ {
-			dir := b.pathJoin(ctx, "data", fmt.Sprintf("%02x", i))
-			if err := b.client.MkdirAll(dir, 0755); err != nil {
-				return err
-			}
+	// Create data/00 - data/ff subdirectories (restic-server compatible layout)
+	for i := 0; i < 256; i++ {
+		dir := b.pathJoin(ctx, "data", fmt.Sprintf("%02x", i))
+		if err := b.client.MkdirAll(dir, 0755); err != nil {
+			return err
 		}
 	}
 
@@ -92,6 +89,18 @@ func (b *Backend) StatBlob(ctx context.Context, t storage.BlobType, name string)
 	p := b.blobPath(ctx, t, name)
 	fi, err := b.client.Stat(p)
 	if err != nil {
+		if isNotFound(err) && t == storage.BlobData && len(name) >= 2 {
+			// Fallback: try unsharded path for pre-sharding data.
+			up := b.blobPathUnsharded(ctx, name)
+			fi, err = b.client.Stat(up)
+			if err != nil {
+				if isNotFound(err) {
+					return 0, storage.ErrNotFound
+				}
+				return 0, err
+			}
+			return fi.Size(), nil
+		}
 		if isNotFound(err) {
 			return 0, storage.ErrNotFound
 		}
@@ -103,23 +112,27 @@ func (b *Backend) StatBlob(ctx context.Context, t storage.BlobType, name string)
 func (b *Backend) GetBlob(ctx context.Context, t storage.BlobType, name string, offset, length int64) (io.ReadCloser, error) {
 	p := b.blobPath(ctx, t, name)
 
-	if offset > 0 || length > 0 {
-		rc, err := b.client.ReadStreamRange(p, offset, length)
+	// tryRead attempts to read from the given path, with optional range support.
+	tryRead := func(fp string) (io.ReadCloser, error) {
+		if offset > 0 || length > 0 {
+			return b.client.ReadStreamRange(fp, offset, length)
+		}
+		return b.client.ReadStream(fp)
+	}
+
+	rc, err := tryRead(p)
+	if err != nil {
+		if isNotFound(err) && t == storage.BlobData && len(name) >= 2 {
+			// Fallback: try unsharded path for pre-sharding data.
+			up := b.blobPathUnsharded(ctx, name)
+			rc, err = tryRead(up)
+		}
 		if err != nil {
 			if isNotFound(err) {
 				return nil, storage.ErrNotFound
 			}
 			return nil, err
 		}
-		return rc, nil
-	}
-
-	rc, err := b.client.ReadStream(p)
-	if err != nil {
-		if isNotFound(err) {
-			return nil, storage.ErrNotFound
-		}
-		return nil, err
 	}
 	return rc, nil
 }
@@ -137,6 +150,17 @@ func (b *Backend) DeleteBlob(ctx context.Context, t storage.BlobType, name strin
 	p := b.blobPath(ctx, t, name)
 	err := b.client.Remove(p)
 	if err != nil {
+		if isNotFound(err) && t == storage.BlobData && len(name) >= 2 {
+			// Fallback: try unsharded path for pre-sharding data.
+			up := b.blobPathUnsharded(ctx, name)
+			if err := b.client.Remove(up); err != nil {
+				if isNotFound(err) {
+					return storage.ErrNotFound
+				}
+				return err
+			}
+			return nil
+		}
 		if isNotFound(err) {
 			return storage.ErrNotFound
 		}
@@ -148,7 +172,7 @@ func (b *Backend) DeleteBlob(ctx context.Context, t storage.BlobType, name strin
 func (b *Backend) ListBlobs(ctx context.Context, t storage.BlobType) ([]storage.Blob, error) {
 	dir := b.pathJoin(ctx, string(t))
 
-	if t == storage.BlobData && b.dataSharding {
+	if t == storage.BlobData {
 		return b.listShardedBlobs(dir)
 	}
 
@@ -179,8 +203,13 @@ func (b *Backend) listDir(dir string) ([]storage.Blob, error) {
 }
 
 // listShardedBlobs iterates the 256 shard subdirectories and collects all blobs.
+// It also collects any blobs stored directly in dataDir (pre-sharding fallback).
 func (b *Backend) listShardedBlobs(dataDir string) ([]storage.Blob, error) {
-	var blobs []storage.Blob
+	// Collect blobs from flat data/ directory (pre-sharding fallback).
+	blobs, err := b.listDir(dataDir)
+	if err != nil {
+		return nil, err
+	}
 	for i := 0; i < 256; i++ {
 		subdir := path.Join(dataDir, fmt.Sprintf("%02x", i))
 		sub, err := b.listDir(subdir)
@@ -230,10 +259,16 @@ func (b *Backend) pathJoin(ctx context.Context, parts ...string) string {
 
 // blobPath returns the full path for a blob.
 func (b *Backend) blobPath(ctx context.Context, t storage.BlobType, name string) string {
-	if t == storage.BlobData && b.dataSharding && len(name) >= 2 {
+	if t == storage.BlobData && len(name) >= 2 {
 		return b.pathJoin(ctx, "data", name[:2], name)
 	}
 	return b.pathJoin(ctx, string(t), name)
+}
+
+// blobPathUnsharded returns the flat (non-sharded) path for a data blob.
+// Used as fallback when reading blobs that were stored before sharding was enabled.
+func (b *Backend) blobPathUnsharded(ctx context.Context, name string) string {
+	return b.pathJoin(ctx, "data", name)
 }
 
 // isNotFound checks if the error indicates a 404 / not-found condition.

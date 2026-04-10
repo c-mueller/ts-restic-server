@@ -34,6 +34,6 @@ func startWebDAVServer(t *testing.T) string {
 func TestWebDAVBackend(t *testing.T) {
 	t.Parallel()
 	endpoint := startWebDAVServer(t)
-	backend := webdavbackend.New(endpoint, "", "", "", false)
+	backend := webdavbackend.New(endpoint, "", "", "")
 	runBackendSuite(t, backend)
 }

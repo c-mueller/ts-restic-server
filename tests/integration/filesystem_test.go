@@ -9,7 +9,7 @@ import (
 func TestFilesystemBackend(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	backend, err := filesystem.New(dir, true)
+	backend, err := filesystem.New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

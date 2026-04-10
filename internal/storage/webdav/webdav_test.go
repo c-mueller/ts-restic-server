@@ -34,6 +34,6 @@ func startWebDAVServer(t *testing.T) string {
 func TestSuite(t *testing.T) {
 	backendtest.RunSuite(t, func(t *testing.T) storage.Backend {
 		endpoint := startWebDAVServer(t)
-		return webdavbackend.New(endpoint, "", "", "", false)
+		return webdavbackend.New(endpoint, "", "", "")
 	})
 }

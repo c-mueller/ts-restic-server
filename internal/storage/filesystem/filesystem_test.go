@@ -14,7 +14,7 @@ import (
 
 func TestNew_ResolvesBasePath(t *testing.T) {
 	dir := t.TempDir()
-	b, err := New(dir, false)
+	b, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func TestNew_ResolvesBasePath(t *testing.T) {
 
 func TestValidatePath_NormalPath(t *testing.T) {
 	dir := t.TempDir()
-	b, err := New(dir, false)
+	b, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestValidatePath_SymlinkEscape(t *testing.T) {
 	dir := t.TempDir()
 	outside := t.TempDir()
 
-	b, err := New(dir, false)
+	b, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func TestValidatePath_SymlinkEscape_NewFile(t *testing.T) {
 	dir := t.TempDir()
 	outside := t.TempDir()
 
-	b, err := New(dir, false)
+	b, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestIsSubPath(t *testing.T) {
 
 func TestSaveBlob_SkipsDuplicate(t *testing.T) {
 	dir := t.TempDir()
-	b, err := New(dir, false)
+	b, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestSaveBlob_SkipsDuplicate(t *testing.T) {
 
 func TestSaveBlob_WritesNewBlob(t *testing.T) {
 	dir := t.TempDir()
-	b, err := New(dir, false)
+	b, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestSaveBlobSymlinkBlocked(t *testing.T) {
 	dir := t.TempDir()
 	outside := t.TempDir()
 
-	b, err := New(dir, false)
+	b, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,14 +195,18 @@ func TestSaveBlobSymlinkBlocked(t *testing.T) {
 	ctx := context.Background()
 	b.CreateRepo(ctx)
 
-	// Replace the "data" directory with a symlink to outside
+	// Replace the "data" directory with a symlink to outside.
+	// Create the shard subdirectory in the outside dir so EvalSymlinks can
+	// resolve the full path (data/ab/abcdef...) through the symlink.
+	name := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" // pragma: allowlist secret
+	os.MkdirAll(filepath.Join(outside, name[:2]), 0o700)
+
 	dataDir := filepath.Join(dir, "data")
 	os.RemoveAll(dataDir)
 	if err := os.Symlink(outside, dataDir); err != nil {
 		t.Skipf("symlink not supported: %v", err)
 	}
 
-	name := "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" // pragma: allowlist secret
 	err = b.SaveBlob(ctx, storage.BlobData, name, strings.NewReader("data"))
 	if !errors.Is(err, ErrPathEscape) {
 		t.Errorf("expected ErrPathEscape, got: %v", err)
@@ -213,7 +217,7 @@ func TestGetBlobSymlinkBlocked(t *testing.T) {
 	dir := t.TempDir()
 	outside := t.TempDir()
 
-	b, err := New(dir, false)
+	b, err := New(dir)
 	if err != nil {
 		t.Fatal(err)
 	}

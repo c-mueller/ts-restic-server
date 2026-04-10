@@ -27,7 +27,6 @@ log_level: info
 storage:
   backend: filesystem
   path: /data
-  data_sharding: true
 ```
 
 ### compose.yaml
