@@ -91,7 +91,14 @@ func runServe(cmd *cobra.Command, args []string) error {
 			Dir:      cfg.Tailscale.StateDir,
 			AuthKey:  cfg.Tailscale.AuthKey,
 		}
-		defer tsServer.Close()
+		defer func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Warn("recovered panic during tsnet close", zap.Any("panic", r))
+				}
+			}()
+			tsServer.Close()
+		}()
 	}
 
 	if cfg.Metrics.Enabled {
