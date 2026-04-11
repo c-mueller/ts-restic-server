@@ -1,6 +1,8 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/c-mueller/ts-restic-server/internal/acl"
 	"github.com/c-mueller/ts-restic-server/internal/config"
 	"github.com/c-mueller/ts-restic-server/internal/metrics"
@@ -22,6 +24,14 @@ func RegisterRoutes(e *echo.Echo, backend storage.Backend, logger *zap.Logger, a
 	if metricsCfg.Enabled && metrics.Registry != nil {
 		e.GET("/-/metrics", metrics.Handler(metricsCfg.Password))
 	}
+
+	// Catch-all for unregistered system routes under /-/*.
+	// This prevents /-/... paths from falling through to the
+	// /:type/:name blob routes. More specific handlers (metrics, UI)
+	// take priority in Echo's radix tree.
+	e.Any("/-/*", func(c echo.Context) error {
+		return echo.NewHTTPError(http.StatusNotFound)
+	})
 
 	// Pre-routing: strip repo path prefix before route matching
 	e.Pre(middleware.RepoPrefix())
