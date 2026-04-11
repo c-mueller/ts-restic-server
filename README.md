@@ -5,13 +5,16 @@ A [restic](https://restic.net/) REST server written in Go, implementing the offi
 ## Features
 
 - Full restic REST API (v1 and v2) compatibility
-- Multiple storage backends: Filesystem, S3-compatible, WebDAV, Rclone, In-Memory
+- Multiple storage backends: Filesystem, S3-compatible, WebDAV, Rclone, SMB/CIFS, NFS, In-Memory
 - Multi-repository support via URL path prefixes (e.g. `/host-a/backups`, `/host-b/docs`)
 - Optional Tailscale integration for TLS without certificates or port forwarding
 - ACL engine with per-identity, per-repo-path access control (Tailscale tags, users, hostnames, IPs)
-- Append-only mode (deletes blocked except for lock removal)
-- Structured JSON logging with per-request IDs (zap)
+- Web UI with dashboard, repository list, and lock management
+- Per-repository traffic statistics (SQLite-backed)
 - Prometheus metrics for HTTP, ACL, storage, and per-host observability
+- Append-only mode (deletes blocked except for lock removal)
+- Data sharding (`data/00-ff`) for restic-server compatible directory layout with unsharded fallback
+- Structured JSON logging with per-request IDs (zap)
 - HTTP security response headers
 - Graceful shutdown with configurable timeout
 - Configuration via CLI flags, config file, or environment variables (with `${VAR}` substitution)
@@ -20,7 +23,23 @@ A [restic](https://restic.net/) REST server written in Go, implementing the offi
 
 This project is in early development and was largely vibe-coded with AI assistance. It may contain bugs or missing edge cases. **Pull requests and bug reports are welcome!**
 
-## Docker
+## Installation
+
+### Pre-built Binaries
+
+Download pre-built binaries and Debian packages from the [GitHub Releases](https://github.com/c-mueller/ts-restic-server/releases) page. Available for:
+
+- Linux (amd64, arm64, armv7)
+- macOS (amd64, arm64)
+- Windows (amd64)
+
+Debian/Ubuntu:
+
+```bash
+sudo dpkg -i ts-restic-server_*_linux_amd64.deb
+```
+
+### Docker
 
 ```bash
 docker pull ghcr.io/c-mueller/ts-restic-server:latest
@@ -61,7 +80,6 @@ listen_mode: plain
 storage:
   backend: filesystem
   path: /data
-  data_sharding: true
 ```
 
 ```bash
@@ -72,12 +90,18 @@ Multi-arch images (amd64 + arm64) are published to `ghcr.io/c-mueller/ts-restic-
 
 See [docs/docker.md](docs/docker.md) for more details.
 
-## Building
+### Building from Source
 
-Requires Go 1.23+.
+Requires Go 1.26+.
 
 ```bash
 go build -o ts-restic-server .
+```
+
+Version information can be embedded at build time:
+
+```bash
+go build -ldflags "-X github.com/c-mueller/ts-restic-server/internal/buildinfo.Version=1.0.0" -o ts-restic-server .
 ```
 
 ## Usage
@@ -94,6 +118,9 @@ go build -o ts-restic-server .
 
 # Start with Tailscale listener
 ./ts-restic-server serve --listen-mode tailscale
+
+# Print version and build information
+./ts-restic-server version
 ```
 
 ### Using with restic
@@ -135,12 +162,23 @@ tailscale:
 metrics:
   enabled: true
   password: ""            # if set, /-/metrics requires Basic Auth (user: prometheus)
+  per_host_enabled: true  # per-identity/repo-path metrics (disable to reduce cardinality)
+  acl_enabled: false      # route /-/metrics through ACL instead of Basic Auth
+
+stats:
+  enabled: false           # per-repo traffic stats (SQLite)
+  db_path: ./stats.db
+
+ui:
+  enabled: false           # web UI at /-/ui/
+  auth:
+    username: ""
+    password: ""
 
 storage:
-  backend: filesystem     # "filesystem", "s3", "webdav", "rclone", "memory"
+  backend: filesystem     # "filesystem", "s3", "webdav", "rclone", "smb", "nfs", "memory"
   path: ./restic_data
   max_memory_bytes: 104857600  # 100MB for memory backend
-  data_sharding: true          # split data/ into 256 subdirs (00-ff); for filesystem and webdav
   s3:
     bucket: my-bucket
     prefix: ""
@@ -157,6 +195,20 @@ storage:
     endpoint: ""
     username: ""
     password: ""
+  smb:
+    server: ""
+    share: ""
+    username: ""
+    password: ""
+    domain: WORKGROUP
+    port: 445
+    base_path: ""
+  nfs:
+    server: ""
+    export: ""
+    base_path: ""
+    uid: 65534
+    gid: 65534
 ```
 
 ### CLI Flags
@@ -168,7 +220,7 @@ storage:
 | `--listen-mode` | `plain` or `tailscale` |
 | `--append-only` | Enable append-only mode |
 | `--log-level` | `debug`, `info`, `warn`, `error` |
-| `--storage-backend` | `filesystem`, `s3`, `webdav`, `rclone`, `memory` |
+| `--storage-backend` | `filesystem`, `s3`, `webdav`, `rclone`, `smb`, `nfs`, `memory` |
 | `--storage-path` | Path for filesystem backend |
 | `--shutdown-timeout` | Graceful shutdown timeout in seconds (default `30`) |
 | `--metrics-password` | Password for `/-/metrics` endpoint (user: `prometheus`) |
@@ -216,6 +268,38 @@ storage:
     prefix: backups            # optional subdirectory within the WebDAV server
 ```
 
+### SMB/CIFS
+
+Pure-Go SMB2/3 client — no OS-level mounting required. Supports NTLM authentication, atomic writes via temp+rename, and automatic reconnection on connection loss.
+
+```yaml
+storage:
+  backend: smb
+  smb:
+    server: nas.local
+    share: backups
+    username: backup-user
+    password: ${SMB_PASSWORD}  # env var substitution
+    domain: WORKGROUP
+    port: 445
+    base_path: restic          # optional subdirectory within the share
+```
+
+### NFS
+
+Pure-Go NFSv3 client using `AUTH_SYS` authentication — no OS-level mounting required. Supports automatic reconnection on connection loss.
+
+```yaml
+storage:
+  backend: nfs
+  nfs:
+    server: nas.local
+    export: /volume1/backups
+    base_path: restic          # optional subdirectory within the export
+    uid: 1000                  # UID for NFS AUTH_SYS (default: 65534/nobody)
+    gid: 1000                  # GID for NFS AUTH_SYS (default: 65534/nogroup)
+```
+
 ### Rclone
 
 Proxies all storage operations to a remote restic REST server, such as [`rclone serve restic`](https://rclone.org/commands/rclone_serve_restic/). This enables using any of rclone's 70+ supported cloud providers as storage.
@@ -239,6 +323,20 @@ storage:
   max_memory_bytes: 104857600
 ```
 
+## Web UI
+
+The built-in web UI provides a dashboard with repository overview, per-repo traffic statistics, and lock management. It is served at `/-/ui/` and uses a dark theme (Bootswatch darkly) with all assets embedded in the binary.
+
+```yaml
+ui:
+  enabled: true
+  auth:
+    username: admin        # optional Basic Auth
+    password: secret
+```
+
+Requires `stats.enabled: true` for traffic statistics display.
+
 ## Tailscale Integration
 
 When `listen_mode` is set to `tailscale`, the server uses [tsnet](https://pkg.go.dev/tailscale.com/tsnet) to join your Tailnet and serve over HTTPS with automatic TLS certificates. No port forwarding or manual certificate management required.
@@ -258,8 +356,8 @@ The Tailscale listener always binds to port 443, so restic clients can connect w
 The server supports hosting multiple independent repositories under different URL paths. The path prefix is transparently passed to the storage backend:
 
 - **S3**: path prefix becomes part of the S3 key (e.g. `{prefix}/host-a/backups/data/...`)
-- **WebDAV**: path prefix becomes a subdirectory on the WebDAV server (e.g. `{prefix}/host-a/backups/data/...`)
-- **Filesystem**: path prefix becomes a subdirectory (e.g. `./restic_data/host-a/backups/data/...`)
+- **WebDAV**: path prefix becomes a subdirectory on the WebDAV server
+- **Filesystem/SMB/NFS**: path prefix becomes a subdirectory
 - **Memory**: each path prefix gets its own isolated in-memory store
 
 ```bash
@@ -287,6 +385,8 @@ restic.example.com {
 - **Filesystem** — local disk storage with restic's standard directory layout. Default and simplest option.
 - **S3-compatible** — any S3-compatible object storage. Supports custom endpoints for non-AWS providers.
 - **WebDAV** — any WebDAV-compatible cloud storage (Nextcloud, ownCloud, HiDrive, Box, etc.).
+- **SMB/CIFS** — any SMB2/3 share. Pure-Go client, no OS mount required.
+- **NFS** — any NFSv3 export. Pure-Go client, no OS mount required.
 - **Rclone** — proxies to `rclone serve restic` or any restic REST server. Access 70+ cloud providers via rclone.
 - **In-Memory** — ephemeral storage for testing. Data is lost on restart. Configurable memory cap.
 
@@ -301,6 +401,7 @@ Yes. The built-in ACL engine provides fine-grained access control per identity a
 ```yaml
 acl:
   default_role: deny
+  verbose_denials: true   # include identity details in 403 responses (default: true)
   rules:
     - paths: ["/"]
       identities: ["tag:backup"]

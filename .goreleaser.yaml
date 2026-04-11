@@ -1,0 +1,72 @@
+version: 2
+
+builds:
+  - id: ts-restic-server
+    binary: ts-restic-server
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/c-mueller/ts-restic-server/internal/buildinfo.Version={{.Version}}
+      - -X github.com/c-mueller/ts-restic-server/internal/buildinfo.Commit={{.Commit}}
+      - -X github.com/c-mueller/ts-restic-server/internal/buildinfo.BuildDate={{.Date}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - "7"
+    ignore:
+      - goos: darwin
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: arm
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+
+nfpms:
+  - id: packages
+    package_name: ts-restic-server
+    vendor: c-mueller
+    homepage: https://github.com/c-mueller/ts-restic-server
+    maintainer: Christian Mueller
+    description: Restic REST server with pluggable storage backends and optional Tailscale listener
+    license: MIT
+    formats:
+      - deb
+    bindir: /usr/bin
+    contents:
+      - src: config.example.yaml
+        dst: /etc/ts-restic-server/config.example.yaml
+        type: config
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^chore\\(deps\\):"
+      - "^Merge"
+
+release:
+  github:
+    owner: c-mueller
+    name: ts-restic-server
+  draft: true
+  prerelease: auto
