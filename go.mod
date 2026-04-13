@@ -20,7 +20,7 @@ require (
 	go.uber.org/zap v1.27.1
 	golang.org/x/net v0.52.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.48.1
+	modernc.org/sqlite v1.48.2
 	tailscale.com v1.96.5
 )
 
