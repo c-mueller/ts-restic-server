@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -26,12 +27,14 @@ import (
 	smbbackend "github.com/c-mueller/ts-restic-server/internal/storage/smb"
 	"github.com/c-mueller/ts-restic-server/internal/storage/tracked"
 	webdavbackend "github.com/c-mueller/ts-restic-server/internal/storage/webdav"
+	"github.com/c-mueller/ts-restic-server/internal/tsauth"
 	"github.com/c-mueller/ts-restic-server/internal/ui"
 	"github.com/labstack/echo/v4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"tailscale.com/client/tailscale"
+	"tailscale.com/ipn"
 	"tailscale.com/tsnet"
 )
 
@@ -62,12 +65,19 @@ func init() {
 	serveCmd.Flags().Int("shutdown-timeout", 0, "graceful shutdown timeout in seconds (default 30)")
 	viper.BindPFlag("shutdown_timeout", serveCmd.Flags().Lookup("shutdown-timeout"))
 
+	serveCmd.Flags().Bool("tailscale-interactive-login", false, "allow a browser login URL when no Tailscale state and no auth key exist (default: fail, run init instead)")
+	viper.BindPFlag("tailscale.interactive_login", serveCmd.Flags().Lookup("tailscale-interactive-login"))
+
 	viper.BindPFlag("storage.backend", serveCmd.Flags().Lookup("storage-backend"))
 	viper.BindPFlag("storage.path", serveCmd.Flags().Lookup("storage-path"))
 	viper.BindPFlag("metrics.password", serveCmd.Flags().Lookup("metrics-password"))
 }
 
 func runServe(cmd *cobra.Command, args []string) error {
+	if configErr != nil {
+		return configErr
+	}
+
 	envLenient, _ := cmd.Flags().GetBool("env-lenient")
 	cfg, err := config.Load(envLenient)
 	if err != nil {
@@ -80,16 +90,24 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 	defer logger.Sync()
 
+	if configFileUsed != "" {
+		logger.Info("config loaded", zap.String("file", configFileUsed))
+	} else {
+		logger.Info("no config file found, using defaults and environment")
+	}
+
+	sigCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	// The Tailscale login watcher cancels ctx with a cause to abort serve.
+	ctx, cancel := context.WithCancelCause(sigCtx)
+	defer cancel(nil)
+
 	// Create tsnet.Server early so WhoIs is available for identity middleware.
 	var tsServer *tsnet.Server
 	if cfg.ListenMode == "tailscale" {
-		if err := os.MkdirAll(cfg.Tailscale.StateDir, 0o700); err != nil {
-			return fmt.Errorf("create tailscale state directory %s: %w", cfg.Tailscale.StateDir, err)
-		}
-		tsServer = &tsnet.Server{
-			Hostname: cfg.Tailscale.Hostname,
-			Dir:      cfg.Tailscale.StateDir,
-			AuthKey:  cfg.Tailscale.AuthKey,
+		tsServer, err = startTailscale(ctx, cancel, cfg, logger)
+		if err != nil {
+			return err
 		}
 		defer func() {
 			defer func() {
@@ -148,10 +166,80 @@ func runServe(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
+	if err := srv.Run(ctx); err != nil {
+		return err
+	}
+	if cause := context.Cause(ctx); errors.Is(cause, tsauth.ErrNeedsLogin) {
+		return cause
+	}
+	return nil
+}
 
-	return srv.Run(ctx)
+// startTailscale resolves the auth key, refuses to start without node state
+// unless a key or interactive login is available, and starts tsnet. A watcher
+// aborts serve via cancel if the node later asks for an interactive login
+// that was not allowed (e.g. the node was removed from the tailnet).
+func startTailscale(ctx context.Context, cancel context.CancelCauseFunc, cfg *config.Config, logger *zap.Logger) (*tsnet.Server, error) {
+	key, err := tsauth.ResolveAuthKey(tsauth.Sources{
+		Getenv:    os.Getenv,
+		Config:    cfg.Tailscale.AuthKey,
+		ConfigRaw: viper.GetString("tailscale.auth_key"),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	stateDir := cfg.Tailscale.StateDir
+	stateExists := tsauth.StateExists(stateDir)
+	for _, w := range tsauth.ServeWarnings(stateExists, key) {
+		logger.Warn(w)
+	}
+	interactive := cfg.Tailscale.InteractiveLogin
+	if err := tsauth.CheckServeStartup(stateDir, stateExists, key, interactive); err != nil {
+		return nil, err
+	}
+
+	if err := os.MkdirAll(stateDir, 0o700); err != nil {
+		return nil, fmt.Errorf("create tailscale state directory %s: %w", stateDir, err)
+	}
+	tsServer := &tsnet.Server{
+		Hostname: cfg.Tailscale.Hostname,
+		Dir:      stateDir,
+		AuthKey:  key.Value,
+	}
+
+	lc, err := tsServer.LocalClient() // starts tsnet
+	if err != nil {
+		tsServer.Close()
+		return nil, fmt.Errorf("start tailscale: %w", err)
+	}
+	watcher, err := lc.WatchIPNBus(ctx, ipn.NotifyInitialState)
+	if err != nil {
+		tsServer.Close()
+		return nil, fmt.Errorf("watch tailscale state: %w", err)
+	}
+
+	go func() {
+		defer watcher.Close()
+		err := tsauth.WaitRunning(watcher.Next, tsauth.WaitOptions{
+			// With an auth key involved, keep tsnet's previous behavior.
+			AllowInteractive: interactive || key.Value != "",
+			OnNeedsMachineAuth: func() {
+				logger.Warn("tailscale node is waiting for approval in the admin console")
+			},
+		})
+		switch {
+		case errors.Is(err, tsauth.ErrNeedsLogin):
+			logger.Error("tailscale node needs to log in again", zap.String("state_dir", stateDir))
+			cancel(fmt.Errorf("%w: node state in %s is no longer valid; run `ts-restic-server init` again", err, stateDir))
+		case err != nil && ctx.Err() == nil:
+			logger.Warn("tailscale state watcher stopped", zap.Error(err))
+		case err == nil:
+			logger.Info("tailscale node is running")
+		}
+	}()
+
+	return tsServer, nil
 }
 
 func buildLogger(level string) (*zap.Logger, error) {

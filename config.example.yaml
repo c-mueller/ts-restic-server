@@ -7,8 +7,12 @@ max_request_body_size: 256MB  # max HTTP request body size (Echo BodyLimit forma
 
 tailscale:
   hostname: restic-server
-  state_dir: ./ts-state
-  auth_key: ""            # TS_AUTHKEY or set via RESTIC_TAILSCALE_AUTH_KEY
+  state_dir: ./ts-state       # use an absolute path (e.g. /var/lib/ts-restic-server/ts-state) so init and serve agree
+  # Recommended: register the node once with `ts-restic-server init` (key via
+  # --auth-key-stdin or TS_AUTHKEY) and leave auth_key empty.
+  # auth_key still works but keeps the key on the host; not recommended.
+  auth_key: ""
+  interactive_login: false    # true: without state and key, serve logs a browser login URL instead of failing
 
 metrics:
   enabled: true

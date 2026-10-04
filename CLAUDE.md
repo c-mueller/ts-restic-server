@@ -25,9 +25,11 @@ See `docs/docker.md` for Compose setup.
 ## Project Structure
 
 - `main.go` — entry point, calls `cmd.Execute()`
-- `cmd/root.go` — Cobra root command + Viper config init
-- `cmd/serve.go` — `serve` command: wires config, backend, logger, server
-- `internal/config/` — Config structs, defaults, validation
+- `cmd/root.go` — Cobra root command + Viper config init (config file discovery, read errors are fatal)
+- `cmd/serve.go` — `serve` command: wires config, backend, logger, server; Tailscale startup gate + login watcher
+- `cmd/init.go` — `init` command: one-shot Tailscale node registration (auth key never persists)
+- `internal/config/` — Config structs, defaults, validation, config file discovery (`discover.go`)
+- `internal/tsauth/` — Tailscale bootstrap: auth key resolution (flag/stdin/env/config), state check, serve startup decision, IPN wait loop
 - `internal/server/server.go` — Server struct: Echo + logger + backend, Run/Shutdown
 - `internal/server/listener.go` — Listener factory: plain TCP vs tsnet (TLS on :443)
 - `internal/api/router.go` — Registers all Echo routes + middleware
@@ -61,13 +63,15 @@ See `docs/docker.md` for Compose setup.
 - `internal/stats/` — SQLite-backed per-repository statistics store (WAL mode, concurrent-safe)
 - `internal/ui/` — Web UI: server-side rendered dashboard, repo list, repo detail (Bootswatch darkly, embedded assets)
 - `tests/integration/` — Integration tests (full restic lifecycle per backend)
-- `docs/` — Documentation (Docker setup, testing, ACL)
+- `docs/` — Documentation (Docker setup, testing, ACL, Tailscale/init)
 - `.github/workflows/docker.yml` — Docker build + push (multi-arch, ghcr.io)
 - `.github/workflows/test.yml` — CI: unit tests + integration test matrix
 
 ## Configuration
 
 Priority: CLI flags > config file (`--config`) > env vars (prefix `RESTIC_`, e.g. `RESTIC_STORAGE_BACKEND`).
+
+Without `--config`: first of `./config.yaml`, `./config.yml`, `/etc/ts-restic-server/config.yaml`, `/etc/ts-restic-server/config.yml`.
 
 See `config.example.yaml` for all options.
 
@@ -82,6 +86,7 @@ See `config.example.yaml` for all options.
 - **Rclone**: HTTP client proxying to `rclone serve restic` or any restic REST server
 - **SMB/CIFS**: go-smb2 pure-Go client, NTLM auth, atomic writes via temp+rename, auto-reconnect
 - **Tailscale**: tsnet ListenTLS on :443, state_dir for persistent keys, WhoIs identity resolution
+- **Tailscale bootstrap**: `init` registers the node once; `serve` fails without state/key unless `interactive_login`; `auth_key` in config still works but warns (see `docs/tailscale.md`)
 - **ACL engine**: per-identity + per-repo-path access control with cascading rules (deepest path wins)
 - **Identity resolution**: Tailscale WhoIs (tags, user, hostname, IP) or rDNS (plain mode)
 - **ACL denial**: JSON error response with requester identity; request_id for log correlation

@@ -116,7 +116,8 @@ go build -ldflags "-X github.com/c-mueller/ts-restic-server/internal/buildinfo.V
 # Start with a config file
 ./ts-restic-server serve --config config.yaml
 
-# Start with Tailscale listener
+# Register the Tailscale node once, then start with the Tailscale listener
+echo "$TS_AUTHKEY" | ./ts-restic-server init --auth-key-stdin
 ./ts-restic-server serve --listen-mode tailscale
 
 # Print version and build information
@@ -143,6 +144,8 @@ restic -r rest:https://my-restic-server.my-tailnet.ts.net/my-host/backups init
 
 Configuration is loaded with the following priority: **CLI flags > config file > environment variables**.
 
+Without `--config`, the first existing file of `./config.yaml`, `./config.yml`, `/etc/ts-restic-server/config.yaml` and `/etc/ts-restic-server/config.yml` is used. If none exists, defaults and environment variables apply. A config file that is given or found but cannot be read is a startup error.
+
 Environment variables use the prefix `RESTIC_` with underscores replacing dots (e.g. `RESTIC_STORAGE_BACKEND=s3`).
 
 See [`config.example.yaml`](config.example.yaml) for all available options:
@@ -157,7 +160,8 @@ shutdown_timeout: 30     # graceful shutdown timeout in seconds
 tailscale:
   hostname: restic-server
   state_dir: ./ts-state
-  auth_key: ""
+  auth_key: ""            # still supported, not recommended: use `ts-restic-server init`
+  interactive_login: false
 
 metrics:
   enabled: true
@@ -215,7 +219,7 @@ storage:
 
 | Flag | Description |
 |------|-------------|
-| `--config` | Path to config file (default: `./config.yaml`) |
+| `--config` | Path to config file (default: `./config.yaml`/`.yml`, then `/etc/ts-restic-server/config.yaml`/`.yml`) |
 | `--listen` | Listen address (default: `:8880`) |
 | `--listen-mode` | `plain` or `tailscale` |
 | `--append-only` | Enable append-only mode |
@@ -225,6 +229,9 @@ storage:
 | `--shutdown-timeout` | Graceful shutdown timeout in seconds (default `30`) |
 | `--metrics-password` | Password for `/-/metrics` endpoint (user: `prometheus`) |
 | `--env-lenient` | Allow unresolved `${VAR}` placeholders in config values |
+| `--tailscale-interactive-login` | Without Tailscale state and auth key, log a browser login URL instead of failing |
+
+`ts-restic-server init` registers the Tailscale node once; see [Tailscale Integration](#tailscale-integration) and [docs/tailscale.md](docs/tailscale.md) for its flags.
 
 ## Storage Backends
 
@@ -345,9 +352,20 @@ When `listen_mode` is set to `tailscale`, the server uses [tsnet](https://pkg.go
 listen_mode: tailscale
 tailscale:
   hostname: restic-server        # appears as restic-server.my-tailnet.ts.net
-  state_dir: ./ts-state          # persistent Tailscale state
-  auth_key: tskey-auth-...       # optional, for headless auth
+  state_dir: /var/lib/ts-restic-server/ts-state   # persistent Tailscale state
 ```
+
+The auth key is only needed once, to register the node. Pass it to `init` instead of storing it in the config:
+
+```bash
+# key from stdin (not visible in the process list), or TS_AUTHKEY / --auth-key
+echo "$TS_AUTHKEY" | ts-restic-server init --auth-key-stdin
+ts-restic-server serve
+```
+
+`init` waits until the node is up, fetches its TLS certificate and exits. It is idempotent: with a valid node identity in `state_dir` it does nothing and exits 0. Run it as the same user as `serve`.
+
+`serve` then needs no auth key. If neither node state nor an auth key exists, it fails with a hint to run `init` instead of waiting for a browser login (opt back in with `--tailscale-interactive-login`). `tailscale.auth_key` in the config file or `TS_AUTHKEY` still work as before, but keeping the key on the host is not recommended. See [docs/tailscale.md](docs/tailscale.md) for details.
 
 The Tailscale listener always binds to port 443, so restic clients can connect without specifying a port.
 

@@ -67,7 +67,12 @@ type ACLRule struct {
 type Tailscale struct {
 	Hostname string `mapstructure:"hostname"`
 	StateDir string `mapstructure:"state_dir"`
-	AuthKey  string `mapstructure:"auth_key"`
+	// AuthKey is still honored but no longer recommended; use the init
+	// command so the key never has to persist on the host.
+	AuthKey string `mapstructure:"auth_key"`
+	// InteractiveLogin lets serve fall back to a browser login URL when no
+	// node state and no auth key exist, instead of failing.
+	InteractiveLogin bool `mapstructure:"interactive_login"`
 }
 
 type Storage struct {
@@ -128,6 +133,7 @@ func SetDefaults() {
 	viper.SetDefault("log_level", "info")
 	viper.SetDefault("tailscale.hostname", "restic-server")
 	viper.SetDefault("tailscale.state_dir", "./ts-state")
+	viper.SetDefault("tailscale.interactive_login", false)
 	viper.SetDefault("storage.backend", "filesystem")
 	viper.SetDefault("storage.path", "./restic_data")
 	viper.SetDefault("storage.max_memory_bytes", 104857600) // 100MB
@@ -300,6 +306,22 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+// ValidateForInit checks the settings the init command depends on. It runs on
+// a config loaded with lenient env substitution, so placeholders left in the
+// Tailscale fields are rejected here.
+func (c *Config) ValidateForInit() error {
+	if c.ListenMode != "tailscale" {
+		return fmt.Errorf("init is only needed for listen_mode: tailscale (configured: %q)", c.ListenMode)
+	}
+	if c.Tailscale.Hostname == "" || strings.Contains(c.Tailscale.Hostname, "${") {
+		return fmt.Errorf("tailscale.hostname must be set (got %q)", c.Tailscale.Hostname)
+	}
+	if c.Tailscale.StateDir == "" || strings.Contains(c.Tailscale.StateDir, "${") {
+		return fmt.Errorf("tailscale.state_dir must be set (got %q)", c.Tailscale.StateDir)
+	}
 	return nil
 }
 
