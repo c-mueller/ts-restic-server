@@ -156,9 +156,10 @@ func Load(envLenient bool) (*Config, error) {
 		return nil, fmt.Errorf("unmarshalling config: %w", err)
 	}
 
-	// Viper may set ACL to a zero-value struct instead of nil when
-	// no acl: block is present. Normalize to nil if effectively empty.
-	if cfg.ACL != nil && cfg.ACL.DefaultRole == "" && len(cfg.ACL.Rules) == 0 && len(cfg.ACL.TrustedProxies) == 0 && cfg.ACL.DNSServer == "" && cfg.ACL.RDNSCacheTTL == 0 && cfg.ACL.IdentityCacheSize == 0 {
+	// Viper allocates the ACL struct even when no acl: block is present,
+	// because acl.identity_cache_size and acl.verbose_denials have defaults.
+	// Normalize to nil if none of the fields without a default are set.
+	if cfg.ACL != nil && cfg.ACL.DefaultRole == "" && len(cfg.ACL.Rules) == 0 && len(cfg.ACL.TrustedProxies) == 0 && cfg.ACL.DNSServer == "" && cfg.ACL.RDNSCacheTTL == 0 {
 		cfg.ACL = nil
 	}
 
