@@ -12,6 +12,7 @@ import (
 
 func TestSMBBackend(t *testing.T) {
 	t.Parallel()
+	requireIntegration(t)
 	requireDocker(t)
 
 	ctx := context.Background()

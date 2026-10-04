@@ -6,7 +6,7 @@
 |---|---|
 | Go (see `go.mod`) | All tests |
 | `restic` binary | Integration tests |
-| Docker | S3 backend test (MinIO container) |
+| Docker | S3 backend test (RustFS container) |
 
 ## Running tests
 
@@ -65,7 +65,7 @@ All data is poorly compressible (random data) and deterministic (fixed seed).
 | Filesystem | None | `t.TempDir()` |
 | WebDAV | None | In-process Go WebDAV server |
 | Rclone | None | Second ts-restic-server instance with memory backend |
-| S3 | Docker | MinIO via testcontainers-go |
+| S3 | Docker | RustFS via testcontainers-go |
 
 ### Skip behavior
 
@@ -85,4 +85,4 @@ The GitHub Actions pipeline consists of three stages:
 2. **Unit & Vet** — `go vet` + `go test -short` (fast, no restic/Docker required)
 3. **Integration** — One job per backend (parallel, matrix build), runs only when unit tests pass
 
-The S3 tests use an ephemeral MinIO container via testcontainers-go. Docker is pre-installed on the GitHub Actions runners.
+The S3 tests use an ephemeral RustFS container (`rustfs/rustfs`, S3-compatible) via testcontainers-go; MinIO community images are no longer published. Docker is pre-installed on the GitHub Actions runners.

@@ -23,6 +23,15 @@ import (
 const testPassword = "integration-test-password" // pragma: allowlist secret
 const testSeed int64 = 42
 
+// requireIntegration skips the test in -short mode. Call it before starting
+// any containers so the unit test job never pulls images.
+func requireIntegration(t *testing.T) {
+	t.Helper()
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+}
+
 // requireRestic skips the test if the restic binary is not available.
 func requireRestic(t *testing.T) {
 	t.Helper()

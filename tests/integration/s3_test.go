@@ -16,32 +16,34 @@ import (
 
 func TestS3Backend(t *testing.T) {
 	t.Parallel()
+	requireIntegration(t)
 	requireDocker(t)
 
 	ctx := context.Background()
 
 	const (
-		accessKey = "minioadmin" // pragma: allowlist secret
-		secretKey = "minioadmin" // pragma: allowlist secret
+		accessKey = "restic-test-access" // pragma: allowlist secret
+		secretKey = "restic-test-secret" // pragma: allowlist secret
 		bucket    = "test-bucket"
 		region    = "us-east-1"
 	)
 
+	// RustFS replaces MinIO, whose community images were removed from
+	// Docker Hub and quay.io.
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "minio/minio:latest",
+			Image:        "rustfs/rustfs:1.0.1",
 			ExposedPorts: []string{"9000/tcp"},
 			Env: map[string]string{
-				"MINIO_ROOT_USER":     accessKey,
-				"MINIO_ROOT_PASSWORD": secretKey,
+				"RUSTFS_ACCESS_KEY": accessKey,
+				"RUSTFS_SECRET_KEY": secretKey,
 			},
-			Cmd:        []string{"server", "/data"},
-			WaitingFor: wait.ForHTTP("/minio/health/live").WithPort("9000"),
+			WaitingFor: wait.ForHTTP("/health").WithPort("9000"),
 		},
 		Started: true,
 	})
 	if err != nil {
-		t.Fatalf("start minio container: %v", err)
+		t.Fatalf("start rustfs container: %v", err)
 	}
 	t.Cleanup(func() { container.Terminate(ctx) })
 

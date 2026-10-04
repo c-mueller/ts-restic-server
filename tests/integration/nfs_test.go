@@ -32,6 +32,7 @@ func requirePortFree(t *testing.T, port int) {
 
 func TestNFSBackend(t *testing.T) {
 	t.Parallel()
+	requireIntegration(t)
 	requireDocker(t)
 	requireLinux(t)
 
