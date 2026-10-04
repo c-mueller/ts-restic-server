@@ -31,7 +31,7 @@ If the state dir already holds a valid node identity, init does nothing and
 exits 0, so it is safe to run repeatedly (e.g. from Ansible). Run it as the
 user that runs serve, so the state dir stays readable for serve.`,
 	Example: `  echo "$TS_AUTHKEY" | ts-restic-server init --auth-key-stdin
-  TS_AUTHKEY=tskey-auth-... ts-restic-server init --config /etc/ts-restic-server/config.yaml`,
+  TS_AUTHKEY=tskey-auth-... ts-restic-server init --config /etc/ts-restic-server/config.yaml`, // pragma: allowlist secret
 	Args: cobra.NoArgs,
 	RunE: runInit,
 }
