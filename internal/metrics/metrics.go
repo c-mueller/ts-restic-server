@@ -43,11 +43,13 @@ func Init(backendName string, perHostEnabled bool) {
 	Registry.MustRegister(collectors.NewGoCollector())
 	Registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
+	build := buildinfo.Get()
 	BuildInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "restic_server_build_info",
-		Help: "Build information for the restic server.",
-	}, []string{"version", "commit", "build_date"})
-	BuildInfo.WithLabelValues(buildinfo.Version, buildinfo.Commit, buildinfo.BuildDate).Set(1)
+		Help: "Build information for the restic server: version (release tag or development version), " +
+			"full git commit, build date and channel (stable for release tags, unstable otherwise). Always 1.",
+	}, []string{"version", "commit", "build_date", "channel"})
+	BuildInfo.WithLabelValues(build.Version, build.Commit, build.BuildDate, build.Channel).Set(1)
 
 	HTTPRequestDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "restic_server_http_request_duration_seconds",

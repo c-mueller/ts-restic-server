@@ -11,9 +11,11 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version and build information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("ts-restic-server %s\n", buildinfo.Version)
-		fmt.Printf("  commit:     %s\n", buildinfo.Commit)
-		fmt.Printf("  built:      %s\n", buildinfo.BuildDate)
+		info := buildinfo.Get()
+		fmt.Printf("ts-restic-server %s\n", info.Version)
+		fmt.Printf("  commit:     %s\n", info.Commit)
+		fmt.Printf("  built:      %s\n", info.BuildDate)
+		fmt.Printf("  channel:    %s\n", info.Channel)
 	},
 }
 

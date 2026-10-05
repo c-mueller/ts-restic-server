@@ -347,6 +347,19 @@ ui:
 
 Repositories and traffic numbers come from the stats database, so the UI needs `stats.enabled: true`. Without it every page shows a "Statistics are disabled" notice and the server logs a warning at startup. A repository appears after its first request once stats are enabled.
 
+## Build Information
+
+`ts-restic-server version` and the metric `restic_server_build_info` (value always 1) report the running build:
+
+| Label | Release build | Development build |
+|-------|---------------|-------------------|
+| `version` | tag, e.g. `v0.0.6` | `git describe`, Go pseudo-version or goreleaser snapshot, e.g. `v0.0.5-10-gdef2039`; `dev` if unknown |
+| `commit` | full git revision | full git revision |
+| `build_date` | build time (RFC 3339) | build time; `unknown` for plain `go build` |
+| `channel` | `stable` | `unstable` |
+
+Release binaries and Docker images get these values via `-ldflags`. A plain `go build` inside a git checkout falls back to the VCS data Go embeds, so the commit is known there too. Example alert for a host running a development build: `restic_server_build_info{channel="unstable"} == 1`.
+
 ## Tailscale Integration
 
 When `listen_mode` is set to `tailscale`, the server uses [tsnet](https://pkg.go.dev/tailscale.com/tsnet) to join your Tailnet and serve over HTTPS with automatic TLS certificates. No port forwarding or manual certificate management required.

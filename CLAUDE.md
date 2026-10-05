@@ -40,6 +40,7 @@ See `docs/docker.md` for Compose setup.
 - `internal/api/list.go` — GET /:type/ (v1: string[], v2: {name,size}[])
 - `internal/api/version.go` — API version negotiation (Accept header)
 - `internal/apierror/` — Standardized HTTP error responses with request_id correlation
+- `internal/buildinfo/` — Build version/commit/date from ldflags with Go VCS fallback; channel stable (release tag) or unstable
 - `internal/metrics/` — Prometheus metrics (HTTP, ACL, storage, per-host); handler for /-/metrics
 - `internal/middleware/requestid.go` — UUID per request, X-Request-ID header
 - `internal/middleware/logger.go` — Zap structured request logging, identity field
