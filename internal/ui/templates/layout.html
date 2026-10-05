@@ -27,6 +27,11 @@
         </div>
     </nav>
     <div class="container">
+        {{if not .StatsEnabled}}
+        <div class="alert alert-warning" role="alert">
+            <strong>Statistics are disabled.</strong> Repositories and traffic numbers come from the stats database, so these pages stay empty. Set <code>stats.enabled: true</code> (and a persistent <code>stats.db_path</code>) in the config and restart the server. Repositories show up after their next backup or check.
+        </div>
+        {{end}}
         {{template "content" .}}
     </div>
     <footer class="container mt-5 mb-3 text-muted text-center">

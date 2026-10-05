@@ -335,6 +335,9 @@ storage:
 The built-in web UI provides a dashboard with repository overview, per-repo traffic statistics, and lock management. It is served at `/-/ui/` and uses a dark theme (Bootswatch darkly) with all assets embedded in the binary.
 
 ```yaml
+stats:
+  enabled: true            # the UI reads repositories and traffic from here
+  db_path: /var/lib/ts-restic-server/stats.db
 ui:
   enabled: true
   auth:
@@ -342,7 +345,7 @@ ui:
     password: secret
 ```
 
-Requires `stats.enabled: true` for traffic statistics display.
+Repositories and traffic numbers come from the stats database, so the UI needs `stats.enabled: true`. Without it every page shows a "Statistics are disabled" notice and the server logs a warning at startup. A repository appears after its first request once stats are enabled.
 
 ## Tailscale Integration
 

@@ -24,8 +24,8 @@ type Handler struct {
 	tmpls   map[string]*template.Template
 }
 
-// NewHandler creates a UI handler. If store is nil, pages show
-// a "stats not enabled" message. backend is required for lock operations.
+// NewHandler creates a UI handler. If store is nil, every page shows
+// that stats are disabled. backend is required for lock operations.
 func NewHandler(store *stats.Store, backend storage.Backend) (*Handler, error) {
 	h := &Handler{store: store, backend: backend}
 	if err := h.loadTemplates(); err != nil {
@@ -80,10 +80,11 @@ func repoCtx(repoPath string) context.Context {
 // Dashboard shows aggregate stats.
 func (h *Handler) Dashboard(c echo.Context) error {
 	data := map[string]interface{}{
-		"Active":    "dashboard",
-		"RepoCount": 0,
-		"Summary":   &stats.RepoStats{},
-		"Stats":     []stats.RepoStats(nil),
+		"Active":       "dashboard",
+		"StatsEnabled": h.store != nil,
+		"RepoCount":    0,
+		"Summary":      &stats.RepoStats{},
+		"Stats":        []stats.RepoStats(nil),
 	}
 
 	if h.store != nil {
@@ -108,8 +109,9 @@ type repoWithLocks struct {
 // RepoList shows all repositories with stats and lock counts.
 func (h *Handler) RepoList(c echo.Context) error {
 	data := map[string]interface{}{
-		"Active": "repos",
-		"Stats":  []repoWithLocks(nil),
+		"Active":       "repos",
+		"StatsEnabled": h.store != nil,
+		"Stats":        []repoWithLocks(nil),
 	}
 
 	if h.store != nil {
@@ -146,13 +148,14 @@ func (h *Handler) RepoDetail(c echo.Context) error {
 	})
 
 	data := map[string]interface{}{
-		"Active":    "repos",
-		"Repo":      &stats.RepoStats{RepoPath: repoPath},
-		"TotalOps":  int64(0),
-		"Locks":     []storage.Blob(nil),
-		"CSRFToken": csrfToken,
-		"Flash":     c.QueryParam("msg"),
-		"FlashType": c.QueryParam("type"),
+		"Active":       "repos",
+		"StatsEnabled": h.store != nil,
+		"Repo":         &stats.RepoStats{RepoPath: repoPath},
+		"TotalOps":     int64(0),
+		"Locks":        []storage.Blob(nil),
+		"CSRFToken":    csrfToken,
+		"Flash":        c.QueryParam("msg"),
+		"FlashType":    c.QueryParam("type"),
 	}
 
 	if h.store != nil {

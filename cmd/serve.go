@@ -163,6 +163,9 @@ func runServe(cmd *cobra.Command, args []string) error {
 			logger.Warn("failed to initialize web UI", zap.Error(err))
 		} else {
 			logger.Info("web UI enabled at /-/ui/")
+			if statsStore == nil {
+				logger.Warn("web UI lists no repositories without stats; set stats.enabled: true")
+			}
 		}
 	}
 
