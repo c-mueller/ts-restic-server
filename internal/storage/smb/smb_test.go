@@ -58,7 +58,7 @@ func startSMBContainer(t *testing.T) (host string, port int) {
 	// Give Samba a moment to fully initialize after the port is open.
 	time.Sleep(2 * time.Second)
 
-	return host, mappedPort.Int()
+	return host, int(mappedPort.Num())
 }
 
 func TestSuite(t *testing.T) {

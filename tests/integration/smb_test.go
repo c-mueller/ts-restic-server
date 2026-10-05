@@ -47,7 +47,7 @@ func TestSMBBackend(t *testing.T) {
 	// Give Samba a moment to fully initialize after the port is open.
 	time.Sleep(2 * time.Second)
 
-	backend, err := smbbackend.New(host, mappedPort.Int(), "testshare", "testuser", "testpass", "WORKGROUP", "restic-integration")
+	backend, err := smbbackend.New(host, int(mappedPort.Num()), "testshare", "testuser", "testpass", "WORKGROUP", "restic-integration")
 	if err != nil {
 		t.Fatalf("create smb backend: %v", err)
 	}

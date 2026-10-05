@@ -12,7 +12,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/c-mueller/ts-restic-server/internal/storage/backendtest"
 	nfsbackend "github.com/c-mueller/ts-restic-server/internal/storage/nfs"
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )

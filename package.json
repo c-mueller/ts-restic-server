@@ -6,6 +6,6 @@
   },
   "devDependencies": {
     "bootstrap": "^5.3.8",
-    "bootswatch": "^5.3.3"
+    "bootswatch": "^5.3.8"
   }
 }

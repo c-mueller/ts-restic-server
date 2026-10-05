@@ -92,7 +92,7 @@ See [docs/docker.md](docs/docker.md) for more details.
 
 ### Building from Source
 
-Requires Go 1.26+.
+Requires Go 1.27+.
 
 ```bash
 go build -o ts-restic-server .
