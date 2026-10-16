@@ -109,6 +109,37 @@ func TestValidate_ShutdownTimeout(t *testing.T) {
 	}
 }
 
+func TestValidate_MaxRequestBodySize(t *testing.T) {
+	tests := []struct {
+		size    string
+		want    int64
+		wantErr bool
+	}{
+		{"", 0, false},
+		{"256MB", 256_000_000, false},
+		{"1GiB", 1 << 30, false},
+		{"512", 512, false},
+		{"0", 0, true},
+		{"-1MB", 0, true},
+		{"lots", 0, true},
+	}
+	for _, tc := range tests {
+		c := validConfig()
+		c.MaxRequestBodySize = tc.size
+		err := c.Validate()
+		if (err != nil) != tc.wantErr {
+			t.Fatalf("MaxRequestBodySize=%q: err=%v, wantErr=%v", tc.size, err, tc.wantErr)
+		}
+		if tc.wantErr {
+			continue
+		}
+		got, err := c.MaxRequestBodyBytes()
+		if err != nil || got != tc.want {
+			t.Fatalf("MaxRequestBodyBytes(%q) = %d, %v; want %d", tc.size, got, err, tc.want)
+		}
+	}
+}
+
 func TestValidate_FilesystemMissingPath(t *testing.T) {
 	c := validConfig()
 	c.Storage.Path = ""

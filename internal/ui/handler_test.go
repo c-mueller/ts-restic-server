@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/c-mueller/ts-restic-server/internal/stats"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 const statsDisabledHint = "stats.enabled"

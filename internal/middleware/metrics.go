@@ -5,20 +5,20 @@ import (
 	"time"
 
 	"github.com/c-mueller/ts-restic-server/internal/metrics"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Metrics returns middleware that records HTTP request metrics.
 // It should be positioned after ACL in the middleware chain so identity context is available.
 func Metrics() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			start := time.Now()
 
 			err := next(c)
 
 			duration := time.Since(start).Seconds()
-			status := c.Response().Status
+			resp, status := echo.ResolveResponseStatus(c.Response(), err)
 			statusStr := strconv.Itoa(status)
 			method := c.Request().Method
 			path := c.Path() // Echo route pattern, not actual URL — bounded cardinality
@@ -44,7 +44,9 @@ func Metrics() echo.MiddlewareFunc {
 				if c.Request().ContentLength > 0 {
 					metrics.HostBytesReceivedTotal.WithLabelValues(identity, repoPath).Add(float64(c.Request().ContentLength))
 				}
-				metrics.HostBytesSentTotal.WithLabelValues(identity, repoPath).Add(float64(c.Response().Size))
+				if resp != nil {
+					metrics.HostBytesSentTotal.WithLabelValues(identity, repoPath).Add(float64(resp.Size))
+				}
 			}
 
 			return err

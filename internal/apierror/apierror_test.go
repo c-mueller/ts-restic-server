@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func TestNew_BasicResponse(t *testing.T) {
@@ -112,14 +112,14 @@ func TestWithData_NilDataOmitted(t *testing.T) {
 }
 
 func TestCustomHTTPErrorHandler_NonHTTPError(t *testing.T) {
-	handler := CustomHTTPErrorHandler(func(c echo.Context) string { return "" })
+	handler := CustomHTTPErrorHandler(func(c *echo.Context) string { return "" })
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	handler(errors.New("plain error"), c)
+	handler(c, errors.New("plain error"))
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusInternalServerError)
@@ -144,7 +144,7 @@ func TestCustomHTTPErrorHandler_NilRequestIDFunc(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	// Should not panic
-	handler(echo.ErrNotFound, c)
+	handler(c, echo.ErrNotFound)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNotFound)
@@ -158,17 +158,17 @@ func TestCustomHTTPErrorHandler_NilRequestIDFunc(t *testing.T) {
 }
 
 func TestCustomHTTPErrorHandler_CommittedResponse(t *testing.T) {
-	handler := CustomHTTPErrorHandler(func(c echo.Context) string { return "req-id" })
+	handler := CustomHTTPErrorHandler(func(c *echo.Context) string { return "req-id" })
 
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	// Simulate a committed response
-	c.Response().Committed = true
+	// Commit the response before the error handler runs
+	c.Response().WriteHeader(http.StatusOK)
 
-	handler(echo.ErrNotFound, c)
+	handler(c, echo.ErrNotFound)
 
 	// Body should be empty since we returned early
 	if rec.Body.Len() > 0 {

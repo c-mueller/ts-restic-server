@@ -7,11 +7,11 @@ import (
 
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
-func (h *Handler) ListBlobs(c echo.Context) error {
+func (h *Handler) ListBlobs(c *echo.Context) error {
 	ctx := c.Request().Context()
 	reqID := middleware.GetRequestID(ctx)
 	t := storage.BlobType(strings.ToLower(c.Param("type")))

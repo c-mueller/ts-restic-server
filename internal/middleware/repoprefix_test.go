@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/c-mueller/ts-restic-server/internal/apierror"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // setupRepoPrefixEcho creates an Echo instance with RepoPrefix middleware
@@ -16,7 +16,7 @@ func setupRepoPrefixEcho() *echo.Echo {
 	e := echo.New()
 	e.Pre(RepoPrefix())
 
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		prefix := GetRepoPrefix(c.Request().Context())
 		return c.JSON(http.StatusOK, map[string]string{
 			"prefix": prefix,

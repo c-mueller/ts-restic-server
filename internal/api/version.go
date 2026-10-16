@@ -3,7 +3,7 @@ package api
 import (
 	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 const (
@@ -11,6 +11,6 @@ const (
 	resticV2Type = "application/vnd.x.restic.rest.v2"
 )
 
-func isV2(c echo.Context) bool {
+func isV2(c *echo.Context) bool {
 	return strings.EqualFold(c.Request().Header.Get("Accept"), resticV2Type)
 }

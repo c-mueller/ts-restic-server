@@ -1,9 +1,10 @@
 package apierror
 
 import (
+	"errors"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // ErrorResponse is the standardized JSON error envelope returned by all endpoints.
@@ -16,7 +17,7 @@ type ErrorResponse struct {
 }
 
 // New creates an ErrorResponse and sends it as JSON.
-func New(c echo.Context, status int, errStr string, message string, requestID string) error {
+func New(c *echo.Context, status int, errStr string, message string, requestID string) error {
 	resp := ErrorResponse{
 		Status:    status,
 		Error:     errStr,
@@ -29,7 +30,7 @@ func New(c echo.Context, status int, errStr string, message string, requestID st
 }
 
 // WithData creates an ErrorResponse with additional data and sends it as JSON.
-func WithData(c echo.Context, status int, errStr string, message string, requestID string, data interface{}) error {
+func WithData(c *echo.Context, status int, errStr string, message string, requestID string, data interface{}) error {
 	resp := ErrorResponse{
 		Status:    status,
 		Error:     errStr,
@@ -46,25 +47,27 @@ func WithData(c echo.Context, status int, errStr string, message string, request
 
 // CustomHTTPErrorHandler handles Echo-generated errors (404, 405, etc.)
 // using the standardized error envelope. The requestIDFunc extracts the
-// request ID from the echo.Context.
-func CustomHTTPErrorHandler(requestIDFunc func(echo.Context) string) func(error, echo.Context) {
-	return func(err error, c echo.Context) {
-		if c.Response().Committed {
+// request ID from the *echo.Context.
+func CustomHTTPErrorHandler(requestIDFunc func(*echo.Context) string) echo.HTTPErrorHandler {
+	return func(c *echo.Context, err error) {
+		if r, _ := echo.UnwrapResponse(c.Response()); r != nil && r.Committed {
 			return
 		}
 
-		he, ok := err.(*echo.HTTPError)
-		if !ok {
-			he = echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		status := echo.StatusCode(err)
+		var message string
+		var he *echo.HTTPError
+		switch {
+		case errors.As(err, &he):
+			message = he.Message
+		case status == 0:
+			status = http.StatusInternalServerError
+			message = err.Error()
 		}
-
-		status := he.Code
+		if message == "" {
+			message = http.StatusText(status)
+		}
 		errStr := http.StatusText(status)
-		message := ""
-
-		if m, ok := he.Message.(string); ok {
-			message = m
-		}
 
 		reqID := ""
 		if requestIDFunc != nil {
@@ -74,10 +77,8 @@ func CustomHTTPErrorHandler(requestIDFunc func(echo.Context) string) func(error,
 		resp := ErrorResponse{
 			Status:    status,
 			Error:     errStr,
+			Message:   message,
 			RequestID: reqID,
-		}
-		if message != "" {
-			resp.Message = message
 		}
 
 		if c.Request().Method == http.MethodHead {

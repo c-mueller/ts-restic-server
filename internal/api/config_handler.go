@@ -7,11 +7,11 @@ import (
 
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
-func (h *Handler) HeadConfig(c echo.Context) error {
+func (h *Handler) HeadConfig(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	size, err := h.Backend.StatConfig(ctx)
@@ -26,7 +26,7 @@ func (h *Handler) HeadConfig(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-func (h *Handler) GetConfig(c echo.Context) error {
+func (h *Handler) GetConfig(c *echo.Context) error {
 	ctx := c.Request().Context()
 	reqID := middleware.GetRequestID(ctx)
 
@@ -43,7 +43,7 @@ func (h *Handler) GetConfig(c echo.Context) error {
 	return c.Stream(http.StatusOK, "application/octet-stream", rc)
 }
 
-func (h *Handler) SaveConfig(c echo.Context) error {
+func (h *Handler) SaveConfig(c *echo.Context) error {
 	ctx := c.Request().Context()
 	reqID := middleware.GetRequestID(ctx)
 

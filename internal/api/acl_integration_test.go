@@ -11,7 +11,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/config"
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage/memory"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -23,12 +23,10 @@ func setupACLServer(t *testing.T, engine *acl.Engine, appendOnly bool) *echo.Ech
 	logger := zap.NewNop()
 
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
 
 	metricsCfg := config.MetricsConfig{Enabled: false}
 
-	RegisterRoutes(e, backend, logger, appendOnly, engine, middleware.PlainIdentity(), false, metricsCfg, "", true)
+	RegisterRoutes(e, backend, logger, appendOnly, engine, middleware.PlainIdentity(), false, metricsCfg, 0, true)
 
 	return e
 }
@@ -192,8 +190,6 @@ func TestPlainMode_TrustedProxy_XForwardedFor(t *testing.T) {
 	logger := zap.NewNop()
 
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
 
 	// Configure trusted proxy so X-Forwarded-For is honored
 	e.IPExtractor = echo.ExtractIPFromXFFHeader(
@@ -203,7 +199,7 @@ func TestPlainMode_TrustedProxy_XForwardedFor(t *testing.T) {
 	)
 
 	metricsCfg := config.MetricsConfig{Enabled: false}
-	RegisterRoutes(e, backend, logger, false, engine, middleware.PlainIdentity(), false, metricsCfg, "", true)
+	RegisterRoutes(e, backend, logger, false, engine, middleware.PlainIdentity(), false, metricsCfg, 0, true)
 
 	// Request from proxy 192.168.1.1 with real client 10.0.0.5
 	req := httptest.NewRequest(http.MethodGet, "/config", nil)

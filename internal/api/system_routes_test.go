@@ -7,7 +7,7 @@ import (
 
 	"github.com/c-mueller/ts-restic-server/internal/config"
 	"github.com/c-mueller/ts-restic-server/internal/storage/memory"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -19,11 +19,9 @@ func setupRouterServer(t *testing.T) *echo.Echo {
 	logger := zap.NewNop()
 
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
 
 	metricsCfg := config.MetricsConfig{Enabled: false}
-	RegisterRoutes(e, backend, logger, false, nil, nil, false, metricsCfg, "", true)
+	RegisterRoutes(e, backend, logger, false, nil, nil, false, metricsCfg, 0, true)
 	return e
 }
 

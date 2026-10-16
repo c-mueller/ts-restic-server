@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
-func newContextWithAccept(accept string) echo.Context {
+func newContextWithAccept(accept string) *echo.Context {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/data/", nil)
 	if accept != "" {
