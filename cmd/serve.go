@@ -29,7 +29,7 @@ import (
 	webdavbackend "github.com/c-mueller/ts-restic-server/internal/storage/webdav"
 	"github.com/c-mueller/ts-restic-server/internal/tsauth"
 	"github.com/c-mueller/ts-restic-server/internal/ui"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -156,7 +156,10 @@ func runServe(cmd *cobra.Command, args []string) error {
 
 	identityMW := buildIdentityMiddleware(cfg, logger, tsServer)
 
-	srv := server.New(cfg, backend, logger, aclEngine, ipExtractor, identityMW, tsServer)
+	srv, err := server.New(cfg, backend, logger, aclEngine, ipExtractor, identityMW, tsServer)
+	if err != nil {
+		return err
+	}
 
 	if cfg.UI.Enabled {
 		if err := ui.RegisterRoutes(srv.Echo(), statsStore, backend, cfg.UI.Auth.Username, cfg.UI.Auth.Password); err != nil {

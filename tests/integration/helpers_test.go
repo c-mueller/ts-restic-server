@@ -58,7 +58,10 @@ func startServer(t *testing.T, backend storage.Backend) string {
 		Storage:    config.Storage{Backend: "test"},
 	}
 	logger := zap.NewNop()
-	srv := server.New(cfg, backend, logger, nil, nil, nil, nil)
+	srv, err := server.New(cfg, backend, logger, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {

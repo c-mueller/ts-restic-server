@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/c-mueller/ts-restic-server/internal/storage"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // --- parseRange tests ---
 
-func newContextWithRange(rangeHeader string) echo.Context {
+func newContextWithRange(rangeHeader string) *echo.Context {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/data/abc123", nil)
 	if rangeHeader != "" {
@@ -123,13 +123,12 @@ func TestParseRange_SuffixRange(t *testing.T) {
 
 // --- blobParams tests ---
 
-func newContextWithParam(paramType, paramName string) echo.Context {
+func newContextWithParam(paramType, paramName string) *echo.Context {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.SetParamNames("type", "name")
-	c.SetParamValues(paramType, paramName)
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: paramType}, {Name: "name", Value: paramName}})
 	return c
 }
 
@@ -207,8 +206,7 @@ func TestIsValidBlobName(t *testing.T) {
 func TestErrorResponse_InvalidBlobName_Head(t *testing.T) {
 	h := setupTestHandler(false)
 	c, rec := newContext(http.MethodHead, "/data/../etc/passwd")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "../etc/passwd")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "../etc/passwd"}})
 
 	err := h.HeadBlob(c)
 	if err != nil {
@@ -231,8 +229,7 @@ func TestErrorResponse_InvalidBlobName_Head(t *testing.T) {
 func TestErrorResponse_InvalidBlobName_Get(t *testing.T) {
 	h := setupTestHandler(false)
 	c, rec := newContext(http.MethodGet, "/data/not-hex-name")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "not-hex-name")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "not-hex-name"}})
 
 	err := h.GetBlob(c)
 	if err != nil {
@@ -252,8 +249,7 @@ func TestErrorResponse_InvalidBlobName_Get(t *testing.T) {
 func TestErrorResponse_InvalidBlobName_Save(t *testing.T) {
 	h := setupTestHandler(false)
 	c, rec := newContext(http.MethodPost, "/data/path.traversal")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "path.traversal")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "path.traversal"}})
 
 	err := h.SaveBlob(c)
 	if err != nil {
@@ -273,8 +269,7 @@ func TestErrorResponse_InvalidBlobName_Save(t *testing.T) {
 func TestErrorResponse_InvalidBlobName_Delete(t *testing.T) {
 	h := setupTestHandler(false)
 	c, rec := newContext(http.MethodDelete, "/locks/../../escape")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("locks", "../../escape")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "locks"}, {Name: "name", Value: "../../escape"}})
 
 	err := h.DeleteBlob(c)
 	if err != nil {
@@ -295,8 +290,7 @@ func TestValidBlobName_Passes(t *testing.T) {
 	h := setupTestHandler(false)
 	// Valid hex name, blob type check passes, but blob doesn't exist → 404 (not 400)
 	c, rec := newContext(http.MethodHead, "/data/abcdef0123456789")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "abcdef0123456789")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "abcdef0123456789"}})
 
 	err := h.HeadBlob(c)
 	if err != nil {

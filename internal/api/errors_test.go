@@ -10,7 +10,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/apierror"
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage/memory"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -34,8 +34,8 @@ func setupTestHandler(appendOnly bool) *Handler {
 	}
 }
 
-// newContext creates an echo.Context with a request ID set in the context.
-func newContext(method, path string) (echo.Context, *httptest.ResponseRecorder) {
+// newContext creates an *echo.Context with a request ID set in the context.
+func newContext(method, path string) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	req := httptest.NewRequest(method, path, nil)
 	ctx := context.WithValue(req.Context(), middleware.RequestIDKey, "test-request-id")
@@ -48,8 +48,7 @@ func newContext(method, path string) (echo.Context, *httptest.ResponseRecorder) 
 func TestErrorResponse_InvalidBlobType(t *testing.T) {
 	h := setupTestHandler(false)
 	c, rec := newContext(http.MethodGet, "/invalid/somename")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("invalid", "somename")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "invalid"}, {Name: "name", Value: "somename"}})
 
 	err := h.GetBlob(c)
 	if err != nil {
@@ -79,8 +78,7 @@ func TestErrorResponse_BlobNotFound(t *testing.T) {
 	backend.CreateRepo(context.Background())
 
 	c, rec := newContext(http.MethodGet, "/data/abcdef0123456789abcdef0123456789")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "abcdef0123456789abcdef0123456789") // pragma: allowlist secret
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "abcdef0123456789abcdef0123456789"}}) // pragma: allowlist secret
 
 	err := h.GetBlob(c)
 	if err != nil {
@@ -103,8 +101,7 @@ func TestErrorResponse_BlobNotFound(t *testing.T) {
 func TestErrorResponse_AppendOnlyForbidden(t *testing.T) {
 	h := setupTestHandler(true)
 	c, rec := newContext(http.MethodDelete, "/data/abcdef0123456789abcdef0123456789")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "abcdef0123456789abcdef0123456789") // pragma: allowlist secret
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "abcdef0123456789abcdef0123456789"}}) // pragma: allowlist secret
 
 	err := h.DeleteBlob(c)
 	if err != nil {
@@ -235,7 +232,7 @@ func TestErrorResponse_DataOmitted(t *testing.T) {
 }
 
 func TestCustomHTTPErrorHandler_MethodNotAllowed(t *testing.T) {
-	handler := apierror.CustomHTTPErrorHandler(func(c echo.Context) string {
+	handler := apierror.CustomHTTPErrorHandler(func(c *echo.Context) string {
 		return middleware.GetRequestID(c.Request().Context())
 	})
 
@@ -246,7 +243,7 @@ func TestCustomHTTPErrorHandler_MethodNotAllowed(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	handler(echo.NewHTTPError(http.StatusMethodNotAllowed, "PUT method is not allowed"), c)
+	handler(c, echo.NewHTTPError(http.StatusMethodNotAllowed, "PUT method is not allowed"))
 
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", rec.Code)
@@ -265,7 +262,7 @@ func TestCustomHTTPErrorHandler_MethodNotAllowed(t *testing.T) {
 }
 
 func TestCustomHTTPErrorHandler_NotFound(t *testing.T) {
-	handler := apierror.CustomHTTPErrorHandler(func(c echo.Context) string {
+	handler := apierror.CustomHTTPErrorHandler(func(c *echo.Context) string {
 		return ""
 	})
 
@@ -274,7 +271,7 @@ func TestCustomHTTPErrorHandler_NotFound(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	handler(echo.ErrNotFound, c)
+	handler(c, echo.ErrNotFound)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rec.Code)
@@ -290,7 +287,7 @@ func TestCustomHTTPErrorHandler_NotFound(t *testing.T) {
 }
 
 func TestCustomHTTPErrorHandler_HeadRequest(t *testing.T) {
-	handler := apierror.CustomHTTPErrorHandler(func(c echo.Context) string {
+	handler := apierror.CustomHTTPErrorHandler(func(c *echo.Context) string {
 		return ""
 	})
 
@@ -299,7 +296,7 @@ func TestCustomHTTPErrorHandler_HeadRequest(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	handler(echo.ErrNotFound, c)
+	handler(c, echo.ErrNotFound)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", rec.Code)
@@ -367,8 +364,7 @@ func TestErrorResponse_FullSchema(t *testing.T) {
 func TestErrorResponse_ListInvalidType(t *testing.T) {
 	h := setupTestHandler(false)
 	c, rec := newContext(http.MethodGet, "/invalid/")
-	c.SetParamNames("type")
-	c.SetParamValues("invalid")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "invalid"}})
 
 	err := h.ListBlobs(c)
 	if err != nil {
@@ -395,8 +391,7 @@ func TestErrorResponse_DeleteBlobNotFound(t *testing.T) {
 	backend.CreateRepo(context.Background())
 
 	c, rec := newContext(http.MethodDelete, "/data/abcdef0123456789abcdef0123456789")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "abcdef0123456789abcdef0123456789") // pragma: allowlist secret
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "abcdef0123456789abcdef0123456789"}}) // pragma: allowlist secret
 
 	err := h.DeleteBlob(c)
 	if err != nil {

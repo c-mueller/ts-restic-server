@@ -12,7 +12,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
 	"github.com/c-mueller/ts-restic-server/internal/storage/memory"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -26,8 +26,8 @@ func setupTestHandlerWithQuota(appendOnly bool, maxBytes int64) *Handler {
 	}
 }
 
-// newContextWithBody creates an echo.Context with a request body, request ID, and repo prefix.
-func newContextWithBody(method, path string, body []byte) (echo.Context, *httptest.ResponseRecorder) {
+// newContextWithBody creates an *echo.Context with a request body, request ID, and repo prefix.
+func newContextWithBody(method, path string, body []byte) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	var bodyReader io.Reader
 	if body != nil {
@@ -188,8 +188,7 @@ func TestHeadBlob_Success(t *testing.T) {
 	h.Backend.SaveBlob(context.Background(), storage.BlobData, "aabb0011", bytes.NewReader(data))
 
 	c, rec := newContext(http.MethodHead, "/data/aabb0011")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "aabb0011")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "aabb0011"}})
 	if err := h.HeadBlob(c); err != nil {
 		t.Fatal(err)
 	}
@@ -212,8 +211,7 @@ func TestGetBlob_Success(t *testing.T) {
 	h.Backend.SaveBlob(context.Background(), storage.BlobData, "aabb0022", bytes.NewReader(data))
 
 	c, rec := newContext(http.MethodGet, "/data/aabb0022")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "aabb0022")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "aabb0022"}})
 	if err := h.GetBlob(c); err != nil {
 		t.Fatal(err)
 	}
@@ -243,8 +241,7 @@ func TestGetBlob_Range(t *testing.T) {
 	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "aabb0033")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "aabb0033"}})
 
 	if err := h.GetBlob(c); err != nil {
 		t.Fatal(err)
@@ -274,8 +271,7 @@ func TestGetBlob_RangeOpenEnd(t *testing.T) {
 	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "aabb0044")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "aabb0044"}})
 
 	if err := h.GetBlob(c); err != nil {
 		t.Fatal(err)
@@ -302,8 +298,7 @@ func TestGetBlob_RangeNotSatisfiable(t *testing.T) {
 	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "aabb0055")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "aabb0055"}})
 
 	if err := h.GetBlob(c); err != nil {
 		t.Fatal(err)
@@ -319,8 +314,7 @@ func TestSaveBlob_Success(t *testing.T) {
 
 	data := []byte("new-blob-data")
 	c, rec := newContextWithBody(http.MethodPost, "/data/aabb0066", data)
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "aabb0066")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "aabb0066"}})
 
 	if err := h.SaveBlob(c); err != nil {
 		t.Fatal(err)
@@ -346,8 +340,7 @@ func TestDeleteBlob_Success(t *testing.T) {
 	h.Backend.SaveBlob(context.Background(), storage.BlobData, "aabb0077", bytes.NewReader([]byte("data")))
 
 	c, rec := newContext(http.MethodDelete, "/data/aabb0077")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("data", "aabb0077")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}, {Name: "name", Value: "aabb0077"}})
 
 	if err := h.DeleteBlob(c); err != nil {
 		t.Fatal(err)
@@ -364,8 +357,7 @@ func TestDeleteBlob_AppendOnly_LocksAllowed(t *testing.T) {
 	h.Backend.SaveBlob(context.Background(), storage.BlobLocks, "aabb0088", bytes.NewReader([]byte("lock")))
 
 	c, rec := newContext(http.MethodDelete, "/locks/aabb0088")
-	c.SetParamNames("type", "name")
-	c.SetParamValues("locks", "aabb0088")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "locks"}, {Name: "name", Value: "aabb0088"}})
 
 	if err := h.DeleteBlob(c); err != nil {
 		t.Fatal(err)
@@ -382,8 +374,7 @@ func TestListBlobs_V1_Empty(t *testing.T) {
 	initRepo(t, h)
 
 	c, rec := newContext(http.MethodGet, "/data/")
-	c.SetParamNames("type")
-	c.SetParamValues("data")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}})
 
 	if err := h.ListBlobs(c); err != nil {
 		t.Fatal(err)
@@ -408,8 +399,7 @@ func TestListBlobs_V1_WithData(t *testing.T) {
 	}
 
 	c, rec := newContext(http.MethodGet, "/data/")
-	c.SetParamNames("type")
-	c.SetParamValues("data")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}})
 
 	if err := h.ListBlobs(c); err != nil {
 		t.Fatal(err)
@@ -433,8 +423,7 @@ func TestListBlobs_V2_Empty(t *testing.T) {
 	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.SetParamNames("type")
-	c.SetParamValues("data")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}})
 
 	if err := h.ListBlobs(c); err != nil {
 		t.Fatal(err)
@@ -470,8 +459,7 @@ func TestListBlobs_V2_WithData(t *testing.T) {
 	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.SetParamNames("type")
-	c.SetParamValues("data")
+	c.SetPathValues(echo.PathValues{{Name: "type", Value: "data"}})
 
 	if err := h.ListBlobs(c); err != nil {
 		t.Fatal(err)

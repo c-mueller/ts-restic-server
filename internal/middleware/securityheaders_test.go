@@ -5,13 +5,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 func TestSecurityHeaders_PlainMode(t *testing.T) {
 	e := echo.New()
 	e.Use(SecurityHeaders(false))
-	e.GET("/test", func(c echo.Context) error {
+	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
 
@@ -41,7 +41,7 @@ func TestSecurityHeaders_PlainMode(t *testing.T) {
 func TestSecurityHeaders_TailscaleMode(t *testing.T) {
 	e := echo.New()
 	e.Use(SecurityHeaders(true))
-	e.GET("/test", func(c echo.Context) error {
+	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
 
@@ -58,7 +58,7 @@ func TestSecurityHeaders_TailscaleMode(t *testing.T) {
 func TestSecurityHeaders_OnErrorResponses(t *testing.T) {
 	e := echo.New()
 	e.Use(SecurityHeaders(false))
-	e.GET("/fail", func(c echo.Context) error {
+	e.GET("/fail", func(c *echo.Context) error {
 		return c.String(http.StatusNotFound, "not found")
 	})
 

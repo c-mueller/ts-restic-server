@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/c-mueller/ts-restic-server/internal/apierror"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 type repoPrefixKey struct{}
@@ -29,7 +29,7 @@ var knownSegments = map[string]bool{
 // null bytes, and other control characters before any further processing.
 func RepoPrefix() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			path := c.Request().URL.Path
 
 			// System routes (e.g. /-/metrics) bypass repo prefix extraction.

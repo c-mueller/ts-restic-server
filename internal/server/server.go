@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/c-mueller/ts-restic-server/internal/acl"
@@ -11,7 +12,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/config"
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"tailscale.com/tsnet"
 )
@@ -21,19 +22,23 @@ type Server struct {
 	backend  storage.Backend
 	logger   *zap.Logger
 	echo     *echo.Echo
+	http     *http.Server
 	tsServer *tsnet.Server // nil in plain mode
 }
 
-func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEngine *acl.Engine, ipExtractor echo.IPExtractor, identityMW echo.MiddlewareFunc, tsServer *tsnet.Server) *Server {
+func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEngine *acl.Engine, ipExtractor echo.IPExtractor, identityMW echo.MiddlewareFunc, tsServer *tsnet.Server) (*Server, error) {
+	maxBodyBytes, err := cfg.MaxRequestBodyBytes()
+	if err != nil {
+		return nil, err
+	}
+
 	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
 
 	if ipExtractor != nil {
 		e.IPExtractor = ipExtractor
 	}
 
-	e.HTTPErrorHandler = apierror.CustomHTTPErrorHandler(func(c echo.Context) string {
+	e.HTTPErrorHandler = apierror.CustomHTTPErrorHandler(func(c *echo.Context) string {
 		return middleware.GetRequestID(c.Request().Context())
 	})
 
@@ -41,15 +46,16 @@ func New(cfg *config.Config, backend storage.Backend, logger *zap.Logger, aclEng
 	if cfg.ACL != nil {
 		verboseDenials = cfg.ACL.VerboseDenials
 	}
-	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine, identityMW, cfg.ListenMode == "tailscale", cfg.Metrics, cfg.MaxRequestBodySize, verboseDenials)
+	api.RegisterRoutes(e, backend, logger, cfg.AppendOnly, aclEngine, identityMW, cfg.ListenMode == "tailscale", cfg.Metrics, maxBodyBytes, verboseDenials)
 
 	return &Server{
 		cfg:      cfg,
 		backend:  backend,
 		logger:   logger,
 		echo:     e,
+		http:     &http.Server{Handler: e},
 		tsServer: tsServer,
-	}
+	}, nil
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -69,7 +75,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.echo.Server.Serve(ln)
+		errCh <- s.http.Serve(ln)
 	}()
 
 	select {
@@ -78,7 +84,7 @@ func (s *Server) Run(ctx context.Context) error {
 		timeout := time.Duration(s.cfg.ShutdownTimeout) * time.Second
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
-		if err := s.echo.Shutdown(shutdownCtx); err != nil {
+		if err := s.Shutdown(shutdownCtx); err != nil {
 			s.logger.Warn("graceful shutdown incomplete", zap.Duration("timeout", timeout), zap.Error(err))
 			return err
 		}
@@ -90,7 +96,13 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) ServeOnListener(ln net.Listener) error {
-	return s.echo.Server.Serve(ln)
+	return s.http.Serve(ln)
+}
+
+// Shutdown gracefully stops the HTTP server, waiting for in-flight requests
+// until ctx expires.
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.http.Shutdown(ctx)
 }
 
 func (s *Server) Echo() *echo.Echo {

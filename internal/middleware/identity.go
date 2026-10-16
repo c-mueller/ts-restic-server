@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -31,12 +31,12 @@ func GetWhoIsResult(ctx context.Context) *WhoIsResult {
 	return nil
 }
 
-func setIdentity(c echo.Context, ids []string) {
+func setIdentity(c *echo.Context, ids []string) {
 	ctx := context.WithValue(c.Request().Context(), identityKey{}, ids)
 	c.SetRequest(c.Request().WithContext(ctx))
 }
 
-func setWhoIsResult(c echo.Context, result *WhoIsResult) {
+func setWhoIsResult(c *echo.Context, result *WhoIsResult) {
 	ctx := context.WithValue(c.Request().Context(), whoIsResultKey{}, result)
 	c.SetRequest(c.Request().WithContext(ctx))
 }
@@ -135,7 +135,7 @@ func RDNSIdentity(dnsServer string, cacheTTL time.Duration, includeShortHostname
 	cache := newRDNSCache(cacheTTL, maxCacheSize)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			ip := c.RealIP()
 
 			// Check cache
@@ -277,7 +277,7 @@ func WhoIsIdentity(whoIs WhoIsFunc, cacheTTL time.Duration, maxCacheSize int, lo
 	cache := newWhoIsCache(cacheTTL, maxCacheSize)
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			ip := c.RealIP()
 
 			// Check cache
@@ -333,7 +333,7 @@ func buildWhoIsIdentifiers(ip string, result *WhoIsResult) []string {
 // Used when no ACL is configured.
 func PlainIdentity() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			setIdentity(c, []string{c.RealIP()})
 			return next(c)
 		}

@@ -4,7 +4,7 @@ import (
 	"crypto/subtle"
 	"net/http"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -13,7 +13,7 @@ import (
 func Handler(password string) echo.HandlerFunc {
 	h := promhttp.HandlerFor(Registry, promhttp.HandlerOpts{})
 
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		if password != "" {
 			user, pass, ok := c.Request().BasicAuth()
 			if !ok ||

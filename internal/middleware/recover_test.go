@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/c-mueller/ts-restic-server/internal/apierror"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
@@ -22,7 +22,7 @@ func TestRecover_PanicBeforeResponse_Returns500(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	mw := Recover(logger)
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		panic("something went wrong")
 	})
 
@@ -64,11 +64,11 @@ func TestRecover_PanicAfterCommit_NoDoubleWrite(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	mw := Recover(logger)
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		// Write a partial response to commit the response writer.
 		c.Response().WriteHeader(http.StatusOK)
 		c.Response().Write([]byte("partial"))
-		c.Response().Flush()
+		http.NewResponseController(c.Response()).Flush()
 		panic("late panic")
 	})
 
@@ -105,7 +105,7 @@ func TestRecover_NoPanic_PassesThrough(t *testing.T) {
 
 	called := false
 	mw := Recover(logger)
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		called = true
 		return c.String(http.StatusOK, "ok")
 	})
@@ -132,7 +132,7 @@ func TestRecover_LogsPanicAsStringNotArbitrary(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	mw := Recover(logger)
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		panic("secret-data-12345")
 	})
 

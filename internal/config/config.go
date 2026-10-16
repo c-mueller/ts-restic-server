@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/labstack/gommon/bytes"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
@@ -300,6 +301,10 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if _, err := c.MaxRequestBodyBytes(); err != nil {
+		return err
+	}
+
 	if c.ACL != nil {
 		if err := c.ACL.Validate(); err != nil {
 			return err
@@ -307,6 +312,19 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// MaxRequestBodyBytes parses max_request_body_size (e.g. "256MB", "1GiB") into
+// bytes. An empty value disables the limit and returns 0.
+func (c *Config) MaxRequestBodyBytes() (int64, error) {
+	if c.MaxRequestBodySize == "" {
+		return 0, nil
+	}
+	n, err := bytes.Parse(c.MaxRequestBodySize)
+	if err != nil || n <= 0 {
+		return 0, fmt.Errorf("invalid max_request_body_size %q: must be a positive size such as 256MB or 1GiB", c.MaxRequestBodySize)
+	}
+	return n, nil
 }
 
 // ValidateForInit checks the settings the init command depends on. It runs on

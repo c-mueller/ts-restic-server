@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/c-mueller/ts-restic-server/internal/acl"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -30,7 +30,7 @@ func newTestACLEngine(allowedIdentity string) *acl.Engine {
 
 // setupACLTest creates an Echo context with the given identities set in the context.
 // If setIdentities is false, no identity is stored (simulating missing identity middleware).
-func setupACLTest(setIdentities bool, identities []string) (echo.Context, *httptest.ResponseRecorder) {
+func setupACLTest(setIdentities bool, identities []string) (*echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/config", nil)
 	// Set RemoteAddr so RealIP() returns a known value
@@ -56,7 +56,7 @@ func TestACLMiddleware_NilIdentity_FallsBackToRealIP(t *testing.T) {
 	c, rec := setupACLTest(false, nil)
 
 	called := false
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		called = true
 		return c.String(http.StatusOK, "ok")
 	})
@@ -83,7 +83,7 @@ func TestACLMiddleware_EmptyIdentitySlice_FallsBackToRealIP(t *testing.T) {
 	c, rec := setupACLTest(true, []string{})
 
 	called := false
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		called = true
 		return c.String(http.StatusOK, "ok")
 	})
@@ -110,7 +110,7 @@ func TestACLMiddleware_WithIdentity_UsesProvidedIdentity(t *testing.T) {
 	c, rec := setupACLTest(true, []string{"host.example.com"})
 
 	called := false
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		called = true
 		return c.String(http.StatusOK, "ok")
 	})
@@ -137,7 +137,7 @@ func TestACLMiddleware_WithIdentity_DeniesUnknownIdentity(t *testing.T) {
 	c, rec := setupACLTest(true, []string{"unknown.example.com"})
 
 	called := false
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		called = true
 		return c.String(http.StatusOK, "ok")
 	})
@@ -165,7 +165,7 @@ func TestACLMiddleware_NilEngine_PassesThrough(t *testing.T) {
 	c := e.NewContext(req, rec)
 
 	called := false
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		called = true
 		return c.String(http.StatusOK, "ok")
 	})
@@ -186,7 +186,7 @@ func TestACLMiddleware_VerboseDenial_IncludesDetails(t *testing.T) {
 	mw := ACL(engine, logger, true, false) // verbose
 	c, rec := setupACLTest(true, []string{"unknown.example.com"})
 
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
 
@@ -211,7 +211,7 @@ func TestACLMiddleware_MinimalDenial_OmitsDetails(t *testing.T) {
 	mw := ACL(engine, logger, false, false) // minimal
 	c, rec := setupACLTest(true, []string{"unknown.example.com"})
 
-	handler := mw(func(c echo.Context) error {
+	handler := mw(func(c *echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
 

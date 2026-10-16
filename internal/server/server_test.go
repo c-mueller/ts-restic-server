@@ -22,7 +22,10 @@ func TestRun_GracefulShutdown(t *testing.T) {
 	backend := memory.New(1024)
 	logger := zap.NewNop()
 
-	srv := New(cfg, backend, logger, nil, nil, nil, nil)
+	srv, err := New(cfg, backend, logger, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("new server: %v", err)
+	}
 
 	// Create a listener on an ephemeral port so Run() can start.
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -40,14 +43,14 @@ func TestRun_GracefulShutdown(t *testing.T) {
 	// Give the server a moment to start serving.
 	time.Sleep(50 * time.Millisecond)
 
-	// Trigger shutdown via echo.Shutdown with the configured timeout.
+	// Trigger shutdown via Server.Shutdown with the configured timeout.
 	timeout := time.Duration(cfg.ShutdownTimeout) * time.Second
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), timeout)
 	defer shutdownCancel()
 
 	done := make(chan struct{})
 	go func() {
-		if err := srv.Echo().Shutdown(shutdownCtx); err != nil {
+		if err := srv.Shutdown(shutdownCtx); err != nil {
 			t.Errorf("shutdown error: %v", err)
 		}
 		close(done)

@@ -7,13 +7,13 @@ import (
 
 	"github.com/c-mueller/ts-restic-server/internal/apierror"
 	"github.com/c-mueller/ts-restic-server/internal/metrics"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
 func Recover(logger *zap.Logger) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			defer func() {
 				if r := recover(); r != nil {
 					if metrics.Registry != nil {
@@ -25,7 +25,7 @@ func Recover(logger *zap.Logger) echo.MiddlewareFunc {
 						zap.String("panic", fmt.Sprintf("%v", r)),
 						zap.String("stack", string(debug.Stack())),
 					)
-					if !c.Response().Committed {
+					if resp, _ := echo.UnwrapResponse(c.Response()); resp == nil || !resp.Committed {
 						apierror.New(c, http.StatusInternalServerError, "internal server error", "", reqID)
 					} else {
 						logger.Warn("response already committed during panic recovery",

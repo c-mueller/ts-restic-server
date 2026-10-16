@@ -14,7 +14,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/stats"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 // Handler serves the Web UI pages.
@@ -62,7 +62,7 @@ func (h *Handler) loadTemplates() error {
 	return nil
 }
 
-func (h *Handler) render(c echo.Context, name string, data interface{}) error {
+func (h *Handler) render(c *echo.Context, name string, data interface{}) error {
 	tmpl, ok := h.tmpls[name]
 	if !ok {
 		return echo.NewHTTPError(http.StatusInternalServerError, "template not found: "+name)
@@ -78,7 +78,7 @@ func repoCtx(repoPath string) context.Context {
 }
 
 // Dashboard shows aggregate stats.
-func (h *Handler) Dashboard(c echo.Context) error {
+func (h *Handler) Dashboard(c *echo.Context) error {
 	data := map[string]interface{}{
 		"Active":       "dashboard",
 		"StatsEnabled": h.store != nil,
@@ -107,7 +107,7 @@ type repoWithLocks struct {
 }
 
 // RepoList shows all repositories with stats and lock counts.
-func (h *Handler) RepoList(c echo.Context) error {
+func (h *Handler) RepoList(c *echo.Context) error {
 	data := map[string]interface{}{
 		"Active":       "repos",
 		"StatsEnabled": h.store != nil,
@@ -133,7 +133,7 @@ func (h *Handler) RepoList(c echo.Context) error {
 }
 
 // RepoDetail shows stats for a single repository including locks.
-func (h *Handler) RepoDetail(c echo.Context) error {
+func (h *Handler) RepoDetail(c *echo.Context) error {
 	repoPath := c.Param("*")
 	repoPath = strings.TrimSuffix(repoPath, "/")
 
@@ -175,7 +175,7 @@ func (h *Handler) RepoDetail(c echo.Context) error {
 }
 
 // DeleteLock handles POST requests to delete a lock blob.
-func (h *Handler) DeleteLock(c echo.Context) error {
+func (h *Handler) DeleteLock(c *echo.Context) error {
 	repoPath := c.Param("*")
 	repoPath = strings.TrimSuffix(repoPath, "/")
 	lockName := c.FormValue("lock_name")
@@ -228,7 +228,7 @@ func RegisterRoutes(e *echo.Echo, store *stats.Store, backend storage.Backend, a
 
 	uiGroup.GET("/static/*", echo.WrapHandler(staticHandler))
 	uiGroup.GET("/", h.Dashboard)
-	uiGroup.GET("", func(c echo.Context) error {
+	uiGroup.GET("", func(c *echo.Context) error {
 		return c.Redirect(http.StatusMovedPermanently, "/-/ui/")
 	})
 	uiGroup.GET("/repos/", h.RepoList)
@@ -240,7 +240,7 @@ func RegisterRoutes(e *echo.Echo, store *stats.Store, backend storage.Backend, a
 
 func basicAuth(username, password string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			u, p, ok := c.Request().BasicAuth()
 			if !ok || u != username || p != password {
 				c.Response().Header().Set("WWW-Authenticate", `Basic realm="ts-restic-server"`)

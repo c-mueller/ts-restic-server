@@ -8,7 +8,7 @@ import (
 	"github.com/c-mueller/ts-restic-server/internal/acl"
 	"github.com/c-mueller/ts-restic-server/internal/apierror"
 	"github.com/c-mueller/ts-restic-server/internal/metrics"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -24,7 +24,7 @@ func ACL(engine *acl.Engine, logger *zap.Logger, verboseDenials, metricsACLEnabl
 		if engine == nil {
 			return next
 		}
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			// System routes bypass ACL unless explicitly opted in.
 			reqPath := c.Request().URL.Path
 			if strings.HasPrefix(reqPath, "/-/") {
@@ -70,7 +70,7 @@ func ACL(engine *acl.Engine, logger *zap.Logger, verboseDenials, metricsACLEnabl
 
 // aclDeniedResponse constructs a standardized JSON error response for ACL denials.
 // When verbose is false, only a minimal response with request_id is returned.
-func aclDeniedResponse(c echo.Context, repoPath string, op acl.OperationType, verbose bool) error {
+func aclDeniedResponse(c *echo.Context, repoPath string, op acl.OperationType, verbose bool) error {
 	if !verbose {
 		return apierror.WithData(c, http.StatusForbidden, "access denied", "", GetRequestID(c.Request().Context()), nil)
 	}

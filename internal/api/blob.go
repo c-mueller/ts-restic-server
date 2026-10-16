@@ -10,7 +10,7 @@ import (
 
 	"github.com/c-mueller/ts-restic-server/internal/middleware"
 	"github.com/c-mueller/ts-restic-server/internal/storage"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +23,7 @@ func isValidBlobName(name string) bool {
 	return validBlobNameRe.MatchString(name)
 }
 
-func (h *Handler) HeadBlob(c echo.Context) error {
+func (h *Handler) HeadBlob(c *echo.Context) error {
 	ctx := c.Request().Context()
 	t, name := blobParams(c)
 
@@ -47,7 +47,7 @@ func (h *Handler) HeadBlob(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-func (h *Handler) GetBlob(c echo.Context) error {
+func (h *Handler) GetBlob(c *echo.Context) error {
 	ctx := c.Request().Context()
 	reqID := middleware.GetRequestID(ctx)
 	t, name := blobParams(c)
@@ -113,7 +113,7 @@ func (h *Handler) GetBlob(c echo.Context) error {
 	return c.Stream(http.StatusOK, "application/octet-stream", rc)
 }
 
-func (h *Handler) SaveBlob(c echo.Context) error {
+func (h *Handler) SaveBlob(c *echo.Context) error {
 	ctx := c.Request().Context()
 	reqID := middleware.GetRequestID(ctx)
 	t, name := blobParams(c)
@@ -139,7 +139,7 @@ func (h *Handler) SaveBlob(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-func (h *Handler) DeleteBlob(c echo.Context) error {
+func (h *Handler) DeleteBlob(c *echo.Context) error {
 	ctx := c.Request().Context()
 	reqID := middleware.GetRequestID(ctx)
 	t, name := blobParams(c)
@@ -168,11 +168,11 @@ func (h *Handler) DeleteBlob(c echo.Context) error {
 	return c.NoContent(http.StatusOK)
 }
 
-func blobParams(c echo.Context) (storage.BlobType, string) {
+func blobParams(c *echo.Context) (storage.BlobType, string) {
 	return storage.BlobType(strings.ToLower(c.Param("type"))), c.Param("name")
 }
 
-func parseRange(c echo.Context) (offset, length int64, rangeRequested bool) {
+func parseRange(c *echo.Context) (offset, length int64, rangeRequested bool) {
 	rangeHeader := c.Request().Header.Get("Range")
 	if rangeHeader == "" {
 		return 0, 0, false
