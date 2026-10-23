@@ -1,6 +1,6 @@
 module github.com/c-mueller/ts-restic-server
 
-go 1.27.2
+go 1.27.3
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.47.3
@@ -23,7 +23,7 @@ require (
 	golang.org/x/net v0.61.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.60.1
-	tailscale.com v1.104.1
+	tailscale.com v1.104.2
 )
 
 require (
