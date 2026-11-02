@@ -178,6 +178,21 @@ func TestSaveConfig_Success(t *testing.T) {
 	}
 }
 
+func TestSaveConfig_AppendOnly_WriteOnce(t *testing.T) {
+	h := setupTestHandlerWithQuota(true, 1024*1024)
+	initRepo(t, h)
+
+	for i, want := range []int{http.StatusOK, http.StatusForbidden} {
+		c, rec := newContextWithBody(http.MethodPost, "/config", []byte(`{"version":3}`))
+		if err := h.SaveConfig(c); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Code != want {
+			t.Fatalf("write %d: status = %d, want %d", i+1, rec.Code, want)
+		}
+	}
+}
+
 // --- Blob Endpoints ---
 
 func TestHeadBlob_Success(t *testing.T) {

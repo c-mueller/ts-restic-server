@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"time"
@@ -63,9 +64,21 @@ func ACL(engine *acl.Engine, logger *zap.Logger, verboseDenials, metricsACLEnabl
 				)
 				return aclDeniedResponse(c, repoPath, op, verboseDenials)
 			}
+			if op == acl.OpWrite && !engine.Allowed(identities, repoPath, acl.OpDelete) {
+				c.SetRequest(c.Request().WithContext(context.WithValue(c.Request().Context(), appendOnlyKey{}, true)))
+			}
 			return next(c)
 		}
 	}
+}
+
+type appendOnlyKey struct{}
+
+// IsAppendOnly reports whether the ACL let this request write but would not
+// have let it delete, so handlers must not let it replace existing data.
+func IsAppendOnly(ctx context.Context) bool {
+	v, _ := ctx.Value(appendOnlyKey{}).(bool)
+	return v
 }
 
 // aclDeniedResponse constructs a standardized JSON error response for ACL denials.

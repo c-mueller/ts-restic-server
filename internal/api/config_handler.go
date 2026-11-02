@@ -49,6 +49,19 @@ func (h *Handler) SaveConfig(c *echo.Context) error {
 
 	defer c.Request().Body.Close()
 
+	// Append-only clients may create the config but not replace it: a
+	// replaced config locks everyone out of the repository.
+	if h.AppendOnly || middleware.IsAppendOnly(ctx) {
+		_, err := h.Backend.StatConfig(ctx)
+		if err == nil {
+			return apiError(c, http.StatusForbidden, "forbidden", "append-only mode: the config already exists")
+		}
+		if !errors.Is(err, storage.ErrNotFound) {
+			h.Logger.Error("stat config failed", zap.String("request_id", reqID), zap.Error(err))
+			return apiError(c, http.StatusInternalServerError, "internal server error", "")
+		}
+	}
+
 	err := h.Backend.SaveConfig(ctx, c.Request().Body)
 	if err != nil {
 		if errors.Is(err, storage.ErrQuotaExceeded) {

@@ -453,7 +453,7 @@ Yes. Every URL path prefix creates an independent repository. For example, `/ser
 
 ### How does append-only mode work?
 
-With `append_only: true`, the server rejects all DELETE requests on blobs with HTTP 403, preventing data from being removed. Lock deletion remains allowed so that stale locks can still be cleaned up. This is useful as a safeguard against accidental or malicious data deletion.
+With `append_only: true`, the server rejects all DELETE requests on blobs with HTTP 403, preventing data from being removed, and refuses to replace a repository config that already exists. Lock deletion remains allowed so that stale locks can still be cleaned up. This is useful as a safeguard against accidental or malicious data deletion.
 
 ## Disclaimer
 

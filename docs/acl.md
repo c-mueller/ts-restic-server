@@ -53,6 +53,8 @@ There are four permission levels (ascending):
 
 Lock deletion (`DELETE /locks/*`) is treated as a write operation, not a delete. This allows append-only clients to manage their own locks.
 
+Writing the repository config (`POST /config`) is a write only while the repository has no config. Replacing an existing config needs `full-access`, because a replaced config makes the repository unreadable.
+
 ### Path Matching
 
 Rule paths match on segment boundaries as a prefix:

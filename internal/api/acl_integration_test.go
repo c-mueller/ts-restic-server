@@ -176,6 +176,40 @@ func TestPlainMode_AppendOnly_AllowsWriteBlocksDelete(t *testing.T) {
 	}
 }
 
+func TestPlainMode_AppendOnly_ConfigWriteOnce(t *testing.T) {
+	for _, tt := range []struct {
+		perm        acl.Permission
+		replaceCode int
+	}{
+		{acl.AppendOnly, http.StatusForbidden},
+		{acl.FullAccess, http.StatusOK},
+	} {
+		t.Run(tt.perm.String(), func(t *testing.T) {
+			engine, _ := acl.New(acl.Deny, []acl.Rule{
+				{Paths: []string{"/"}, Identities: []string{"*"}, Permission: tt.perm},
+			})
+			srv := setupACLServer(t, engine, false)
+			post := func(target string) int {
+				req := httptest.NewRequest(http.MethodPost, target, strings.NewReader("config"))
+				req.RemoteAddr = "10.0.0.1:12345"
+				rec := httptest.NewRecorder()
+				srv.ServeHTTP(rec, req)
+				return rec.Code
+			}
+
+			if code := post("/host/?create=true"); code != http.StatusOK {
+				t.Fatalf("create repo: got %d", code)
+			}
+			if code := post("/host/config"); code != http.StatusOK {
+				t.Fatalf("first config write: got %d, want 200", code)
+			}
+			if code := post("/host/config"); code != tt.replaceCode {
+				t.Fatalf("config replace: got %d, want %d", code, tt.replaceCode)
+			}
+		})
+	}
+}
+
 func TestPlainMode_EmptySegments_MatchDeeperRule(t *testing.T) {
 	engine, _ := acl.New(acl.Deny, []acl.Rule{
 		{Paths: []string{"/team"}, Identities: []string{"*"}, Permission: acl.FullAccess},
