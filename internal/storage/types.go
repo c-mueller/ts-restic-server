@@ -1,6 +1,9 @@
 package storage
 
-import "errors"
+import (
+	"errors"
+	"regexp"
+)
 
 type BlobType string
 
@@ -18,6 +21,15 @@ var ValidBlobTypes = map[BlobType]bool{
 	BlobLocks:     true,
 	BlobSnapshots: true,
 	BlobIndex:     true,
+}
+
+var validBlobNameRe = regexp.MustCompile(`^[0-9a-fA-F]+$`)
+
+// ValidBlobName reports whether name is a non-empty hex string. Restic names
+// every blob by its SHA-256, so anything else is not a blob name, and
+// rejecting it keeps a name from reaching outside its type's directory.
+func ValidBlobName(name string) bool {
+	return validBlobNameRe.MatchString(name)
 }
 
 type Blob struct {

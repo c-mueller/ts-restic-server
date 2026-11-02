@@ -1,13 +1,17 @@
 package ui
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/c-mueller/ts-restic-server/internal/stats"
+	"github.com/c-mueller/ts-restic-server/internal/storage"
+	"github.com/c-mueller/ts-restic-server/internal/storage/filesystem"
 	"github.com/labstack/echo/v5"
 )
 
@@ -58,5 +62,56 @@ func TestPages_WithStatsStore_ShowData(t *testing.T) {
 		if !strings.Contains(body, "host/backup") {
 			t.Errorf("GET %s: page should list repository host/backup", path)
 		}
+	}
+}
+
+func TestDeleteLock_OnlyDeletesLocksOfTheRepo(t *testing.T) {
+	backend, err := filesystem.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := repoCtx("host/backup")
+	if err := backend.CreateRepo(ctx); err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range []struct {
+		t    storage.BlobType
+		name string
+	}{{storage.BlobKeys, "aaaa"}, {storage.BlobLocks, "bbbb"}} {
+		if err := backend.SaveBlob(ctx, b.t, b.name, strings.NewReader("x")); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	e := echo.New()
+	if err := RegisterRoutes(e, nil, backend, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	post := func(target, lock string) int {
+		form := url.Values{"lock_name": {lock}, "csrf_token": {"token"}}
+		req := httptest.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationForm)
+		req.AddCookie(&http.Cookie{Name: "csrf_token", Value: "token"})
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	post("/-/ui/repos/host/backup/delete-lock", "../keys/aaaa")
+	if code := post("/-/ui/repos/host/x/../backup/delete-lock", "bbbb"); code != http.StatusBadRequest {
+		t.Errorf("repo path with ..: status = %d, want 400", code)
+	}
+	if _, err := backend.StatBlob(ctx, storage.BlobKeys, "aaaa"); err != nil {
+		t.Errorf("key must survive a lock name that is not a lock: %v", err)
+	}
+	if _, err := backend.StatBlob(ctx, storage.BlobLocks, "bbbb"); err != nil {
+		t.Fatalf("lock must survive a rejected repo path: %v", err)
+	}
+
+	if code := post("/-/ui/repos/host/backup/delete-lock", "bbbb"); code != http.StatusSeeOther {
+		t.Fatalf("delete lock: status = %d, want 303", code)
+	}
+	if _, err := backend.StatBlob(ctx, storage.BlobLocks, "bbbb"); !errors.Is(err, storage.ErrNotFound) {
+		t.Errorf("lock should be deleted, StatBlob error = %v", err)
 	}
 }

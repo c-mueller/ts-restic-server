@@ -72,6 +72,13 @@ func (h *Handler) render(c *echo.Context, name string, data interface{}) error {
 	return tmpl.ExecuteTemplate(c.Response(), "layout", data)
 }
 
+// repoParam checks and normalizes a repository path from the URL like the
+// API does (middleware.SplitRepoPath).
+func repoParam(p string) (string, bool) {
+	segments, err := middleware.SplitRepoPath(p)
+	return strings.Join(segments, "/"), err == nil
+}
+
 // repoCtx creates a context with the given repo prefix for backend operations.
 func repoCtx(repoPath string) context.Context {
 	return middleware.ContextWithRepoPrefix(context.Background(), repoPath)
@@ -134,8 +141,10 @@ func (h *Handler) RepoList(c *echo.Context) error {
 
 // RepoDetail shows stats for a single repository including locks.
 func (h *Handler) RepoDetail(c *echo.Context) error {
-	repoPath := c.Param("*")
-	repoPath = strings.TrimSuffix(repoPath, "/")
+	repoPath, ok := repoParam(c.Param("*"))
+	if !ok {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid repository path")
+	}
 
 	// Generate CSRF token for lock deletion forms.
 	csrfToken := generateCSRFToken()
@@ -176,8 +185,14 @@ func (h *Handler) RepoDetail(c *echo.Context) error {
 
 // DeleteLock handles POST requests to delete a lock blob.
 func (h *Handler) DeleteLock(c *echo.Context) error {
-	repoPath := c.Param("*")
-	repoPath = strings.TrimSuffix(repoPath, "/")
+	p, found := strings.CutSuffix(c.Param("*"), "/delete-lock")
+	if !found {
+		return echo.ErrNotFound
+	}
+	repoPath, ok := repoParam(p)
+	if !ok {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid repository path")
+	}
 	lockName := c.FormValue("lock_name")
 	formToken := c.FormValue("csrf_token")
 
@@ -189,8 +204,8 @@ func (h *Handler) DeleteLock(c *echo.Context) error {
 		return c.Redirect(http.StatusSeeOther, redirectURL+"?msg=Invalid+CSRF+token&type=danger")
 	}
 
-	if lockName == "" {
-		return c.Redirect(http.StatusSeeOther, redirectURL+"?msg=No+lock+specified&type=danger")
+	if !storage.ValidBlobName(lockName) {
+		return c.Redirect(http.StatusSeeOther, redirectURL+"?msg=Invalid+lock+name&type=danger")
 	}
 
 	if h.backend == nil {
@@ -233,7 +248,8 @@ func RegisterRoutes(e *echo.Echo, store *stats.Store, backend storage.Backend, a
 	})
 	uiGroup.GET("/repos/", h.RepoList)
 	uiGroup.GET("/repos/*", h.RepoDetail)
-	uiGroup.POST("/repos/*/delete-lock", h.DeleteLock)
+	// Echo ignores what follows "*", so DeleteLock checks for /delete-lock itself.
+	uiGroup.POST("/repos/*", h.DeleteLock)
 
 	return nil
 }

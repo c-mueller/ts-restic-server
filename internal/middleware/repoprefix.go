@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -25,8 +26,7 @@ var knownSegments = map[string]bool{
 // can use it to scope storage (e.g. different repos in the same S3 bucket).
 // The URL is rewritten to strip the prefix so Echo's routes match correctly.
 //
-// Path segments are validated to reject directory traversal sequences (.., .),
-// null bytes, and other control characters before any further processing.
+// The path is checked and split by SplitRepoPath before any further processing.
 func RepoPrefix() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
@@ -37,28 +37,15 @@ func RepoPrefix() echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			segments := strings.Split(strings.Trim(path, "/"), "/")
-
-			// Validate all segments before processing.
-			for _, seg := range segments {
-				if seg == ".." || seg == "." {
-					return apierror.New(c, http.StatusBadRequest, "bad request",
-						"path traversal sequences are not allowed",
-						GetRequestID(c.Request().Context()))
-				}
-				if strings.ContainsAny(seg, "\x00") {
-					return apierror.New(c, http.StatusBadRequest, "bad request",
-						"path contains invalid characters",
-						GetRequestID(c.Request().Context()))
-				}
+			segments, err := SplitRepoPath(path)
+			if err != nil {
+				return apierror.New(c, http.StatusBadRequest, "bad request",
+					err.Error(), GetRequestID(c.Request().Context()))
 			}
 
 			for i, seg := range segments {
 				if knownSegments[seg] {
-					prefix := ""
-					if i > 0 {
-						prefix = strings.Join(segments[:i], "/")
-					}
+					prefix := strings.Join(segments[:i], "/")
 					apiPath := "/" + strings.Join(segments[i:], "/")
 					if strings.HasSuffix(path, "/") {
 						apiPath += "/"
@@ -71,13 +58,33 @@ func RepoPrefix() echo.MiddlewareFunc {
 			}
 
 			// No known API segment found — root-level operation (create/delete repo)
-			prefix := strings.Trim(path, "/")
+			prefix := strings.Join(segments, "/")
 			ctx := context.WithValue(c.Request().Context(), repoPrefixKey{}, prefix)
 			c.SetRequest(c.Request().WithContext(ctx))
 			c.Request().URL.Path = "/"
 			return next(c)
 		}
 	}
+}
+
+// SplitRepoPath splits a URL path into its segments. Empty segments are
+// dropped: the backends join paths with path.Join or filepath.Join, which
+// read "a//b" as "a/b", so the ACL has to see the same path. ".", "..", NUL
+// bytes and backslashes (a separator on SMB) are rejected.
+func SplitRepoPath(p string) ([]string, error) {
+	var segments []string
+	for _, seg := range strings.Split(p, "/") {
+		switch {
+		case seg == "":
+			continue
+		case seg == "." || seg == "..":
+			return nil, errors.New("path traversal sequences are not allowed")
+		case strings.ContainsAny(seg, "\x00\\"):
+			return nil, errors.New("path contains invalid characters")
+		}
+		segments = append(segments, seg)
+	}
+	return segments, nil
 }
 
 // ContextWithRepoPrefix returns a new context with the given repo prefix set.

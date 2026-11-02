@@ -176,6 +176,24 @@ func TestPlainMode_AppendOnly_AllowsWriteBlocksDelete(t *testing.T) {
 	}
 }
 
+func TestPlainMode_EmptySegments_MatchDeeperRule(t *testing.T) {
+	engine, _ := acl.New(acl.Deny, []acl.Rule{
+		{Paths: []string{"/team"}, Identities: []string{"*"}, Permission: acl.FullAccess},
+		{Paths: []string{"/team/secret"}, Identities: []string{"*"}, Permission: acl.ReadOnly},
+	})
+	srv := setupACLServer(t, engine, false)
+
+	for _, target := range []string{"/team/secret/data/abcd", "/team//secret/data/abcd"} {
+		req := httptest.NewRequest(http.MethodDelete, target, nil)
+		req.RemoteAddr = "10.0.0.1:12345"
+		rec := httptest.NewRecorder()
+		srv.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("DELETE %s: got %d, want 403 (read-only rule on /team/secret)", target, rec.Code)
+		}
+	}
+}
+
 func TestPlainMode_TrustedProxy_XForwardedFor(t *testing.T) {
 	// Allow only 10.0.0.5 (the real client behind the proxy)
 	engine, _ := acl.New(acl.Deny, []acl.Rule{

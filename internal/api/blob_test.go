@@ -167,7 +167,7 @@ func TestBlobParams_AllCaps(t *testing.T) {
 	}
 }
 
-// --- isValidBlobName tests ---
+// --- storage.ValidBlobName tests ---
 
 func TestIsValidBlobName(t *testing.T) {
 	valid := []string{
@@ -179,8 +179,8 @@ func TestIsValidBlobName(t *testing.T) {
 		"aAbBcCdDeEfF", // pragma: allowlist secret
 	}
 	for _, name := range valid {
-		if !isValidBlobName(name) {
-			t.Errorf("isValidBlobName(%q) = false, want true", name)
+		if !storage.ValidBlobName(name) {
+			t.Errorf("storage.ValidBlobName(%q) = false, want true", name)
 		}
 	}
 
@@ -197,8 +197,8 @@ func TestIsValidBlobName(t *testing.T) {
 		"abc_def",
 	}
 	for _, name := range invalid {
-		if isValidBlobName(name) {
-			t.Errorf("isValidBlobName(%q) = true, want false", name)
+		if storage.ValidBlobName(name) {
+			t.Errorf("storage.ValidBlobName(%q) = true, want false", name)
 		}
 	}
 }

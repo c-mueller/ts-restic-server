@@ -124,6 +124,7 @@ func TestRepoPrefix_NullByte(t *testing.T) {
 	}{
 		{"null in prefix", "/host\x00evil/config"},
 		{"null in segment", "/\x00/data/abc"},
+		{"backslash in prefix", `/host\evil/config`},
 	}
 
 	for _, tt := range tests {
@@ -134,7 +135,7 @@ func TestRepoPrefix_NullByte(t *testing.T) {
 			e.ServeHTTP(rec, req)
 
 			if rec.Code != http.StatusBadRequest {
-				t.Fatalf("expected 400 for path with null byte, got %d", rec.Code)
+				t.Fatalf("expected 400 for path with invalid character, got %d", rec.Code)
 			}
 
 			var resp apierror.ErrorResponse
@@ -164,6 +165,8 @@ func TestRepoPrefix_LegitimateMultiLevelPaths(t *testing.T) {
 		{"root config", "/config", "", "/config"},
 		{"root data", "/data/abc", "", "/data/abc"},
 		{"repo create", "/myrepo", "myrepo", "/"},
+		{"empty segments are dropped", "/host//backup/config", "host/backup", "/config"},
+		{"empty segment after type", "/myrepo/data//abc123", "myrepo", "/data/abc123"},
 	}
 
 	for _, tt := range tests {

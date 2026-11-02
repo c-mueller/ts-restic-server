@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -14,15 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-var validBlobNameRe = regexp.MustCompile(`^[0-9a-fA-F]+$`)
-
-// isValidBlobName checks that a blob name is a non-empty hex string.
-// Restic uses SHA-256 content-addressed storage, so all blob names are
-// hex-encoded hashes. This prevents path traversal via crafted blob names.
-func isValidBlobName(name string) bool {
-	return validBlobNameRe.MatchString(name)
-}
-
 func (h *Handler) HeadBlob(c *echo.Context) error {
 	ctx := c.Request().Context()
 	t, name := blobParams(c)
@@ -30,7 +20,7 @@ func (h *Handler) HeadBlob(c *echo.Context) error {
 	if !storage.ValidBlobTypes[t] {
 		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
 	}
-	if !isValidBlobName(name) {
+	if !storage.ValidBlobName(name) {
 		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
@@ -55,7 +45,7 @@ func (h *Handler) GetBlob(c *echo.Context) error {
 	if !storage.ValidBlobTypes[t] {
 		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
 	}
-	if !isValidBlobName(name) {
+	if !storage.ValidBlobName(name) {
 		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
@@ -121,7 +111,7 @@ func (h *Handler) SaveBlob(c *echo.Context) error {
 	if !storage.ValidBlobTypes[t] {
 		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
 	}
-	if !isValidBlobName(name) {
+	if !storage.ValidBlobName(name) {
 		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
@@ -147,7 +137,7 @@ func (h *Handler) DeleteBlob(c *echo.Context) error {
 	if !storage.ValidBlobTypes[t] {
 		return apiError(c, http.StatusBadRequest, "invalid blob type", fmt.Sprintf("unknown type %q", string(t)))
 	}
-	if !isValidBlobName(name) {
+	if !storage.ValidBlobName(name) {
 		return apiError(c, http.StatusBadRequest, "invalid blob name", "blob name must be a hex string")
 	}
 
