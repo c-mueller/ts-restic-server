@@ -292,20 +292,10 @@ func buildACLEngine(cfg *config.ACLConfig) (*acl.Engine, error) {
 }
 
 func buildIPExtractor(cfg *config.Config) (echo.IPExtractor, error) {
-	// Tailscale: direct connection, no proxy headers needed.
-	if cfg.ListenMode == "tailscale" {
+	// X-Forwarded-For counts only from configured proxies: any other client
+	// could set it. Tailscale connections are always direct.
+	if cfg.ListenMode == "tailscale" || cfg.ACL == nil || len(cfg.ACL.TrustedProxies) == 0 {
 		return echo.ExtractIPDirect(), nil
-	}
-
-	// Plain mode without ACL: safe default, ignore proxy headers.
-	if cfg.ACL == nil {
-		return echo.ExtractIPDirect(), nil
-	}
-
-	// Plain mode with ACL: evaluate X-Forwarded-For from trusted proxies.
-	if len(cfg.ACL.TrustedProxies) == 0 {
-		// No explicit proxies — use Echo defaults (loopback + link-local + private nets).
-		return echo.ExtractIPFromXFFHeader(), nil
 	}
 
 	// Explicit trusted proxies: trust only the configured CIDRs.

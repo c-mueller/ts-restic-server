@@ -197,7 +197,7 @@ acl:
 | Configuration | Behavior |
 |---|---|
 | Tailscale mode | Direct connection, no proxy headers, `trusted_proxies` is ignored |
-| Plain, no `trusted_proxies` | Echo defaults (loopback + link-local + private nets are trusted) |
+| Plain, no `trusted_proxies` | Direct connection, `X-Forwarded-For` is ignored |
 | Plain, with `trusted_proxies` | Only the specified CIDRs are trusted as proxies |
 
 ## Examples

@@ -84,7 +84,7 @@ storage:
 #   identity_cache_size: 1000    # max identity cache entries (default: 1000)
 #   verbose_denials: true        # include identity details in denial response (default: true; set false for minimal response)
 #   trusted_proxies:              # CIDRs of trusted reverse proxies for X-Forwarded-For
-#     - 10.0.0.0/8               # if omitted, Echo defaults are used (loopback + link-local + private nets)
+#     - 10.0.0.0/8               # if omitted, X-Forwarded-For is ignored
 #     - 172.16.0.0/12
 #   rules:
 #     - paths: ["/server-a"]
